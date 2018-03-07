@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>network.ties.db</groupId>
-        <artifactId>parent</artifactId>
+        <groupId>com.tiesdb</groupId>
+        <artifactId>node-elassandra-parent</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
@@ -18,27 +18,27 @@
 
     <dependencies>
         <dependency>
-            <groupId>network.ties.db</groupId>
+            <groupId>com.tiesdb</groupId>
             <artifactId>context-yaml</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>network.ties.db</groupId>
+            <groupId>com.tiesdb</groupId>
             <artifactId>transport-websocket</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>network.ties.db</groupId>
+            <groupId>com.tiesdb</groupId>
             <artifactId>handler-json</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>network.ties.db</groupId>
+            <groupId>com.tiesdb</groupId>
             <artifactId>service-elassandra</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>network.ties.db</groupId>
+            <groupId>com.tiesdb</groupId>
             <artifactId>bootstrap-elassandra</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -115,12 +115,12 @@
                                         <outputDirectory>${project.build.directory}/elassandra-distribution</outputDirectory>
                                     </artifactItem>
                                     <artifactItem>
-                                        <groupId>network.ties.db</groupId>
+                                        <groupId>com.tiesdb</groupId>
                                         <artifactId>distribution-common</artifactId>
                                         <version>${project.version}</version>
                                         <overWrite>true</overWrite>
                                         <outputDirectory>${project.build.directory}/elassandra</outputDirectory>
-                                        <excludes>>META-INF/**</excludes>
+                                        <excludes>META-INF/**</excludes>
                                     </artifactItem>
                                 </artifactItems>
                             </configuration>
@@ -128,7 +128,12 @@
                     </executions>
                     <dependencies>
                         <dependency>
-                            <groupId>network.ties.db</groupId>
+                            <groupId>com.strapdata.elasticsearch.distribution.zip</groupId>
+                            <artifactId>elasticsearch</artifactId>
+                            <version>${elassandra.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.tiesdb</groupId>
                             <artifactId>distribution-common</artifactId>
                             <version>${project.version}</version>
                         </dependency>
@@ -170,8 +175,8 @@
 
     <modules>
         <module>common</module>
-        <module>tar</module>
         <module>zip</module>
+        <module>tar</module>
     </modules>
 
 </project>

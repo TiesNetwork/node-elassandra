@@ -5,14 +5,18 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>network.ties.db</groupId>
-    <artifactId>parent</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <parent>
+        <groupId>com.tiesdb</groupId>
+        <artifactId>node-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>node-elassandra-parent</artifactId>
 
     <packaging>pom</packaging>
 
-    <name>TiesDB Parent POM</name>
-    <description>Parent POM for TiesDB project</description>
+    <name>TiesDB Elassandra Node Parent POM</name>
+    <description>Parent POM for TiesDB Elassandra Node</description>
     <inceptionYear>2017</inceptionYear>
 
     <licenses>
@@ -338,7 +342,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
         <profile>
             <id>elassandra</id>
             <modules>
-                <module>core</module>
                 <module>elassandra</module>
             </modules>
         </profile>

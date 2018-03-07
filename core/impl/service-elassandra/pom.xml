@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<groupId>network.ties.db</groupId>
+		<groupId>com.tiesdb</groupId>
 		<artifactId>core-impl</artifactId>
 		<version>0.1.0-SNAPSHOT</version>
 	</parent>
@@ -25,12 +25,12 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>network.ties.db</groupId>
+			<groupId>com.tiesdb</groupId>
 			<artifactId>core-api</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>network.ties.db</groupId>
+			<groupId>com.tiesdb</groupId>
 			<artifactId>swissknife</artifactId>
 			<version>${project.version}</version>
 		</dependency>
