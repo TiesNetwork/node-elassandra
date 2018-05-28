@@ -15,6 +15,14 @@
  */
 package network.tiesdb.transport.impl.ws.netty;
 
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.HashMap;
+
+import org.stringtemplate.v4.*;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
@@ -24,9 +32,10 @@ import io.netty.util.CharsetUtil;
  */
 public final class WebSocketServerIndexPage {
 
-    private static final String NEWLINE = "\r\n";
+    private static final String NEWLINE = System.lineSeparator();
 	private static final String STYLE = "eclipse";
 
+	//FIXME: Delete
     public static ByteBuf getContent(String webSocketLocation) {
         return Unpooled.copiedBuffer(
                 "<html><head><title>Web Socket Test</title></head>" + NEWLINE +
@@ -47,7 +56,12 @@ public final class WebSocketServerIndexPage {
                 "    document.getElementById('responseText').editor = editor;" + NEWLINE +
                 "    var areaEditor = CodeMirror.fromTextArea(document.getElementById('messageArea'), options);" + NEWLINE +
                 "    document.getElementById('messageArea').editor = areaEditor;" + NEWLINE +
-                "    areaEditor.setValue(localStorage.getItem('messageAreaText') || \"{\\\"Hello\\\":\\\"World!\\\"}\");" + NEWLINE +
+                "    areaEditor.setValue(localStorage.getItem('messageAreaText') || \"" +
+                //-----------------------------------------------------------------
+                //"{\\\"Hello\\\":\\\"World!\\\"}" +
+                "{\\\"Hello\\\":\\\"World!\\\"}" +
+                //-----------------------------------------------------------------
+                "\");" + NEWLINE +
                 "  }" + NEWLINE +
                 "</script>" + NEWLINE +
                 "<body onload=\"onLoad()\">" + NEWLINE +
@@ -97,10 +111,31 @@ public final class WebSocketServerIndexPage {
                 "<textarea id=\"responseText\" style=\"width:500px;height:300px;\"></textarea>" + NEWLINE +
                 "</form>" + NEWLINE +
                 "</body>" + NEWLINE +
-                "</html>" + NEWLINE, CharsetUtil.US_ASCII);
+                "</html>" + NEWLINE, CharsetUtil.UTF_8);
     }
 
     private WebSocketServerIndexPage() {
         // Unused
     }
+
+    public static ByteBuf getContent(File file) throws IOException {
+        return getContent(file, null);
+    }
+
+    public static ByteBuf getContent(File file, HashMap<String, Object> variables) throws IOException {
+        byte[] buffer = new byte[(int) file.length()];
+        String result = null;
+        try (FileInputStream fis = new FileInputStream(file); DataInputStream dis = new DataInputStream(fis)) {
+            dis.readFully(buffer);
+            result = new String(buffer, CharsetUtil.UTF_8);
+        }
+        if (null != variables) {
+            ST st = new ST(result, '$', '$');
+            variables.forEach((key, value) -> st.add(key, value));
+            result = st.render();
+        }
+
+        return Unpooled.copiedBuffer(result, CharsetUtil.UTF_8);
+    }
+
 }

@@ -13,26 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package network.tiesdb.api;
+package network.tiesdb.service.impl.elassandra;
+
+import network.tiesdb.context.api.TiesServiceConfig;
+import network.tiesdb.exception.TiesConfigurationException;
+import network.tiesdb.service.api.TiesServiceFactory;
 
 /**
- * TiesDB version API.
- * 
- * <P>
- * Defines common version functions.
+ * TiesDB basic service factory implementation.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public interface TiesVersion {
+public class TiesServiceFactoryImpl implements TiesServiceFactory {
 
-    static TiesVersion current = TiesApiVersion.v_0_0_1_prealpha;
-
-    Integer getMajorVersion();
-
-    Integer getMinorVersion();
-
-    Integer getIncrementalVersion();
-
-    String getQualifer();
+	@Override
+	public TiesServiceDaemonImpl createServiceDaemon(String name, TiesServiceConfig config) throws TiesConfigurationException {
+		return new TiesServiceDaemonImpl(name, config);
+	}
 
 }

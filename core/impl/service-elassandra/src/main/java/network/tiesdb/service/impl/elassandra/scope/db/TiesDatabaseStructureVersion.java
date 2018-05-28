@@ -13,35 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package network.tiesdb.transport.impl.ws;
+package network.tiesdb.service.impl.elassandra.scope.db;
 
-import network.tiesdb.api.TiesApiVersion;
 import network.tiesdb.api.TiesVersion;
 
 /**
- * TiesDB transport version implementation.
+ * TiesDB database structure version implementation.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public enum TiesTransportImplVersion implements TiesVersion {
+public enum TiesDatabaseStructureVersion implements TiesVersion {
 
-    v_0_0_1_prealpha(TiesApiVersion.v_0_0_1_prealpha, 0, 0, 1, "prealpha");
+    v_0_0_0_missing(0, 0, 0, "missing"), //
+    v_0_0_0_unknown(0, 0, 0, "unknown"), //
+    v_0_0_1_prealpha(0, 0, 1, "prealpha"), //
+    ;
 
     private final Integer majorVersion;
     private final Integer minorVersion;
     private final Integer incrementalVersion;
     private final String qualifer;
-    private final TiesApiVersion apiVersion;
 
-    private TiesTransportImplVersion(TiesApiVersion apiVersion, Integer majorVersion, Integer minorVersion, Integer incrementalVersion) {
-        this(apiVersion, majorVersion, minorVersion, incrementalVersion, null);
+    private TiesDatabaseStructureVersion(Integer majorVersion, Integer minorVersion, Integer incrementalVersion) {
+        this(majorVersion, minorVersion, incrementalVersion, null);
     }
 
-    private TiesTransportImplVersion(TiesApiVersion apiVersion, Integer majorVersion, Integer minorVersion, Integer incrementalVersion,
-            String qualifer) {
-        if (null == apiVersion) {
-            throw new NullPointerException("The apiVersion should not be null");
-        }
+    private TiesDatabaseStructureVersion(Integer majorVersion, Integer minorVersion, Integer incrementalVersion, String qualifer) {
         if (null == majorVersion) {
             throw new NullPointerException("The majorVersion should not be null");
         }
@@ -54,15 +51,10 @@ public enum TiesTransportImplVersion implements TiesVersion {
         if (null != qualifer && qualifer.isEmpty()) {
             qualifer = null;
         }
-        this.apiVersion = apiVersion;
         this.majorVersion = majorVersion;
         this.minorVersion = minorVersion;
         this.incrementalVersion = incrementalVersion;
         this.qualifer = qualifer;
-    }
-
-    public TiesApiVersion getApiVersion() {
-        return apiVersion;
     }
 
     @Override
@@ -88,6 +80,6 @@ public enum TiesTransportImplVersion implements TiesVersion {
     @Override
     public String toString() {
         return getClass().getSimpleName() + " [" + majorVersion + "." + minorVersion + "." + incrementalVersion
-                + (null != qualifer ? "." + qualifer : "") + " " + apiVersion.toString() + "]";
+                + (null != qualifer ? "." + qualifer : "") + "]";
     }
 }

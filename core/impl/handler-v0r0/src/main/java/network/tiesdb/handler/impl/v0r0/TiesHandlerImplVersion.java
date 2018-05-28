@@ -13,17 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package network.tiesdb.transport.impl.ws;
+package network.tiesdb.handler.impl.v0r0;
 
 import network.tiesdb.api.TiesApiVersion;
 import network.tiesdb.api.TiesVersion;
 
 /**
- * TiesDB transport version implementation.
+ * TiesDB handler version implementation.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public enum TiesTransportImplVersion implements TiesVersion {
+public enum TiesHandlerImplVersion implements TiesVersion {
 
     v_0_0_1_prealpha(TiesApiVersion.v_0_0_1_prealpha, 0, 0, 1, "prealpha");
 
@@ -33,11 +33,11 @@ public enum TiesTransportImplVersion implements TiesVersion {
     private final String qualifer;
     private final TiesApiVersion apiVersion;
 
-    private TiesTransportImplVersion(TiesApiVersion apiVersion, Integer majorVersion, Integer minorVersion, Integer incrementalVersion) {
+    private TiesHandlerImplVersion(TiesApiVersion apiVersion, Integer majorVersion, Integer minorVersion, Integer incrementalVersion) {
         this(apiVersion, majorVersion, minorVersion, incrementalVersion, null);
     }
 
-    private TiesTransportImplVersion(TiesApiVersion apiVersion, Integer majorVersion, Integer minorVersion, Integer incrementalVersion,
+    private TiesHandlerImplVersion(TiesApiVersion apiVersion, Integer majorVersion, Integer minorVersion, Integer incrementalVersion,
             String qualifer) {
         if (null == apiVersion) {
             throw new NullPointerException("The apiVersion should not be null");

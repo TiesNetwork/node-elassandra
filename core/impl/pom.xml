@@ -27,7 +27,8 @@
 
     <modules>
         <module>context-yaml</module>
-        <module>handler-json</module>
+        <!-- <module>handler-json</module> -->
+        <module>handler-v0r0</module>
         <module>transport-websocket</module>
         <module>service-elassandra</module>
         <module>bootstrap-elassandra</module>

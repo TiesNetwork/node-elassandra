@@ -22,63 +22,61 @@ package network.tiesdb.api;
  */
 public enum TiesApiVersion implements TiesVersion {
 
-	v_0_1_0_alpha(0, 1, 0, "alpha");
+    v_0_0_1_prealpha(0, 0, 1, "prealpha"), //
+    ;
 
-	private final Integer majorVersion;
-	private final Integer minorVersion;
-	private final Integer incrementalVersion;
-	private final String qualifer;
+    private final Integer majorVersion;
+    private final Integer minorVersion;
+    private final Integer incrementalVersion;
+    private final String qualifer;
 
-	private TiesApiVersion(Integer majorVersion, Integer minorVersion, Integer incrementalVersion) {
-		this(majorVersion, minorVersion, incrementalVersion, null);
-	}
+    private TiesApiVersion(Integer majorVersion, Integer minorVersion, Integer incrementalVersion) {
+        this(majorVersion, minorVersion, incrementalVersion, null);
+    }
 
-	private TiesApiVersion(Integer majorVersion, Integer minorVersion, Integer incrementalVersion, String qualifer) {
-		if (null == majorVersion) {
-			throw new NullPointerException("The majorVersion should not be null");
-		}
-		if (null == minorVersion) {
-			throw new NullPointerException("The minorVersion should not be null");
-		}
-		if (null == incrementalVersion) {
-			throw new NullPointerException("The incrementalVersion should not be null");
-		}
-		if (null != qualifer && qualifer.isEmpty()) {
-			qualifer = null;
-		}
-		this.majorVersion = majorVersion;
-		this.minorVersion = minorVersion;
-		this.incrementalVersion = incrementalVersion;
-		this.qualifer = qualifer;
-	}
+    private TiesApiVersion(Integer majorVersion, Integer minorVersion, Integer incrementalVersion, String qualifer) {
+        if (null == majorVersion) {
+            throw new NullPointerException("The majorVersion should not be null");
+        }
+        if (null == minorVersion) {
+            throw new NullPointerException("The minorVersion should not be null");
+        }
+        if (null == incrementalVersion) {
+            throw new NullPointerException("The incrementalVersion should not be null");
+        }
+        if (null != qualifer && qualifer.isEmpty()) {
+            qualifer = null;
+        }
+        this.majorVersion = majorVersion;
+        this.minorVersion = minorVersion;
+        this.incrementalVersion = incrementalVersion;
+        this.qualifer = qualifer;
+    }
 
-	@Override
-	public Integer getMajorVersion() {
-		return majorVersion;
-	}
+    @Override
+    public Integer getMajorVersion() {
+        return majorVersion;
+    }
 
-	@Override
-	public Integer getMinorVersion() {
-		return minorVersion;
-	}
+    @Override
+    public Integer getMinorVersion() {
+        return minorVersion;
+    }
 
-	@Override
-	public Integer getIncrementalVersion() {
-		return incrementalVersion;
-	}
+    @Override
+    public Integer getIncrementalVersion() {
+        return incrementalVersion;
+    }
 
-	@Override
-	public String getQualifer() {
-		return qualifer;
-	}
+    @Override
+    public String getQualifer() {
+        return qualifer;
+    }
 
-	@Override
-	public TiesApiVersion getApiVersion() {
-		return this;
-	}
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + " [" + majorVersion + "." + minorVersion + "." + incrementalVersion
+                + (null != qualifer ? "." + qualifer : "") + "]";
+    }
 
-	@Override
-	public String toString() {
-		return getClass().getSimpleName() + " [" + ToString.format(this) + "]";
-	}
 }

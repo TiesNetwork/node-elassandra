@@ -32,10 +32,15 @@ import io.netty.util.CharsetUtil;
 
 import static io.netty.handler.codec.http.HttpMethod.GET;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+
+import java.io.File;
+import java.net.URL;
+import java.util.HashMap;
 
 /**
  * Outputs index page content.
@@ -43,6 +48,7 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class WebSocketIndexPageHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
     private final String websocketPath;
+    private final URL staticResourcesUrl = getClass().getClassLoader().getResource("static/");
 
     public WebSocketIndexPageHandler(String websocketPath) {
         this.websocketPath = websocketPath;
@@ -58,23 +64,60 @@ public class WebSocketIndexPageHandler extends SimpleChannelInboundHandler<FullH
 
         // Allow only GET methods.
         if (req.getMethod() != GET) {
-            sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1, FORBIDDEN));
+            sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1, METHOD_NOT_ALLOWED));
             return;
         }
 
-        // Send the index page
-        if ("/".equals(req.getUri()) || "/index.html".equals(req.getUri())) {
-            String webSocketLocation = getWebSocketLocation(ctx.pipeline(), req, websocketPath);
-            ByteBuf content = WebSocketServerIndexPage.getContent(webSocketLocation);
-            FullHttpResponse res = new DefaultFullHttpResponse(HTTP_1_1, OK, content);
-
-            res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "text/html; charset=UTF-8");
-            HttpHeaders.setContentLength(res, content.readableBytes());
-
-            sendHttpResponse(ctx, req, res);
-        } else {
-            sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1, NOT_FOUND));
+        // Find resource file
+        String requestUriStr = req.getUri();
+        if (null == requestUriStr || requestUriStr.isEmpty() || "/".equals(requestUriStr)) {
+            requestUriStr = "/index.html";
         }
+        requestUriStr = requestUriStr.substring(1);
+
+        File resourceFile = new File(staticResourcesUrl.toURI().resolve(requestUriStr));
+        if (!resourceFile.exists() || !resourceFile.isFile()) {
+            sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1, NOT_FOUND));
+            return;
+        }
+
+        // Send the resource data
+        String resourceFileExtension = getFileExtension(resourceFile);
+        ByteBuf content = null;
+        if ("html".equals(resourceFileExtension)) {
+            HashMap<String, Object> templateMap = new HashMap<>();
+            templateMap.put("websocketLocation", getWebSocketLocation(ctx.pipeline(), req, websocketPath));
+            content = WebSocketServerIndexPage.getContent(resourceFile, templateMap);
+        } else {
+            content = WebSocketServerIndexPage.getContent(resourceFile);
+        }
+        if (null == content) {
+            sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1, INTERNAL_SERVER_ERROR));
+            return;
+        }
+        FullHttpResponse res = new DefaultFullHttpResponse(HTTP_1_1, OK, content);
+
+        switch (resourceFileExtension) {
+        case "html":
+            res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "text/html; charset=UTF-8");
+            break;
+        case "js":
+            res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "application/javascript; charset=utf-8");
+            break;
+        default:
+            break;
+        }
+        HttpHeaders.setContentLength(res, content.readableBytes());
+
+        sendHttpResponse(ctx, req, res);
+    }
+
+    private String getFileExtension(File resourceFile) {
+        int i = resourceFile.getName().lastIndexOf('.');
+        if (i > 0) {
+            return resourceFile.getName().substring(i + 1);
+        }
+        return "";
     }
 
     @Override

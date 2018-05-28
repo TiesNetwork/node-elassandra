@@ -1,0 +1,81 @@
+<html>
+   <head>
+      <title>Web Socket Test</title>
+   </head>
+   <link rel=stylesheet href="codemirror/lib/codemirror.css">
+   <style type="text/css">
+      .CodeMirror { border: 1px solid black; font-size:13px }
+   </style>
+   <script src="codemirror/lib/codemirror.js"></script>
+   <script type="text/javascript">
+      function onLoad() {
+        let options = {};
+        let editor = CodeMirror.fromTextArea(document.getElementById('responseText'), options);
+        document.getElementById('responseText').editor = editor;
+        let areaEditor = CodeMirror.fromTextArea(document.getElementById('messageArea'), options);
+        document.getElementById('messageArea').editor = areaEditor;
+        areaEditor.setValue(localStorage.getItem('messageAreaTextEBML') || "C001BA5E1225EFFF00000000000000011E54494541A6EE8200FFE1419FE140B6809F66696C61746F762D6465762E6E6F64652E6465762E7461626C65737061636582886465762D7465737484810186857EBE0941C88881018CA05D6298B29EFDFAFD366DD59E1EE3E716B56D402ACACC863E5F3DDFD839AA18718E813CFC94FAFE9C9E7845F446D091C12C74D44C61A0923C00FEC12FF07C2F333C2F999EDAC9ADC50C9893B72C7E921448DA3C152BE275828229D85FEAF686DC88227AEA0C891806B64FB34B3EC736D906D58F95D65031301073E126D1CED1AA8286737472696E67808B6465736372697074696F6E8693496E697469616C206465736372697074696F6ED1A0828662696E617279808475756964869075E6B139DE734E319600E216E4239030C14093C14090809038007241B5504FA587D68EE7587D407382810184857EBE0941C8868101A196A09464ED31C6187765D40271EE4F9B4C29A5A125DE23FC94FAFE9C9E7845F446D091C12C74D44C61A0923C00FEC12C06F9333BE122E2F32D8D9D7A9216D27CEE6C4219F72AA56E04D21FA4A0DBC33AB1129244908432DC54A9AEED4E60396178CB27695886CB7D23CA539EBAB2A326");
+      }
+      function hex2Bin(str) {
+        let bin = new Uint8Array(str.length / 2);
+        for(var i=0; i < str.length-1; i+=2){
+          bin[i/2] = parseInt(str.substr(i, 2), 16);
+        }
+
+        return bin;
+      }
+   </script>
+   <body onload="onLoad()">
+      <script type="text/javascript">
+         let socket;
+         function openSocket(callback) {
+           let socket;
+           if (!window.WebSocket) {
+             window.WebSocket = window.MozWebSocket;
+           }
+           if (window.WebSocket) {
+             socket = new WebSocket("$websocketLocation$");
+             socket.binaryType = "arraybuffer";
+             socket.onmessage = function(event) {
+               var ta = document.getElementById('responseText').editor;
+               ta.setValue("/* " + new Date().toLocaleString() + " */\n" + event.data + "\n" + ta.getValue());
+             };
+             socket.onopen = function(event) {
+               var ta = document.getElementById('responseText').editor;
+               ta.setValue("### Web Socket opened ###\n" + ta.getValue());
+               if(callback !== undefined){ callback(socket); }
+             };
+             socket.onclose = function(event) {
+               var ta = document.getElementById('responseText').editor;
+               ta.setValue("### Web Socket closed ###\n" + ta.getValue()); 
+             };
+             return socket;
+           } else {
+             alert("Your browser does not support Web Socket.");
+           }
+         }
+         
+         function send(message) {
+           localStorage.setItem('messageAreaTextEBML', message);
+           if (!window.WebSocket) { return; }
+           if (socket !== undefined && socket.readyState == WebSocket.OPEN) {
+             socketSend(socket, message);
+           } else {
+             socket = openSocket(function(socket) { socketSend(socket, message); });
+           }
+         }
+
+         function socketSend(socket, message) {
+           socket.send(hex2Bin(message));
+         }
+      </script>
+      <form onsubmit="return false;">
+         <textarea id="messageArea" name="message" style="width:100%;height:300px;"></textarea>
+         <br/>
+         <input type="button" value="Send Web Socket Data"
+            onclick="send(document.getElementById('messageArea').editor.getValue())" />
+         <h3>Output</h3>
+         <textarea id="responseText" style="width:500px;height:300px;"></textarea>
+      </form>
+   </body>
+</html>

@@ -13,26 +13,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package network.tiesdb.api;
+package network.tiesdb.handler.impl.v0r0;
+
+import network.tiesdb.handler.api.TiesHandler;
+import network.tiesdb.handler.api.TiesHandlerFactory;
+import network.tiesdb.service.api.TiesService;
 
 /**
- * TiesDB version API.
- * 
- * <P>
- * Defines common version functions.
+ * TiesDB handler factory implementation.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public interface TiesVersion {
+public class TiesHandlerFactoryImpl implements TiesHandlerFactory {
 
-    static TiesVersion current = TiesApiVersion.v_0_0_1_prealpha;
+	private TiesHandlerConfigImpl config;
 
-    Integer getMajorVersion();
+	public TiesHandlerFactoryImpl(TiesHandlerConfigImpl config) {
+		this.config = config;
+	}
 
-    Integer getMinorVersion();
-
-    Integer getIncrementalVersion();
-
-    String getQualifer();
-
+	@Override
+	public TiesHandler createHandler(TiesService service) {
+		if (null == service) {
+			throw new NullPointerException("The service should not be null");
+		}
+		return new TiesHandlerImpl(service, config);
+	}
 }

@@ -4,7 +4,7 @@ config:
   TEST: !!TiesService
     transports:
       - !!WebSocketTransport
-        handler: !!TiesHandler
+        handler: !!JsonHandler
           charset: UTF-8
         workerThreadsCount: 1
         serviceAddress: localhost

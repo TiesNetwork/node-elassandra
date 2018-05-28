@@ -13,26 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package network.tiesdb.api;
+package network.tiesdb.handler.impl.json.data;
+
+import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 
 /**
- * TiesDB version API.
+ * TiesDB JSON request.
  * 
- * <P>
- * Defines common version functions.
- * 
+ * <P>Any class implementing this interface can be a part of JSON request.
+ *  
  * @author Anton Filatov (filatov@ties.network)
  */
-public interface TiesVersion {
-
-    static TiesVersion current = TiesApiVersion.v_0_0_1_prealpha;
-
-    Integer getMajorVersion();
-
-    Integer getMinorVersion();
-
-    Integer getIncrementalVersion();
-
-    String getQualifer();
+@JsonIgnoreProperties(ignoreUnknown = true) // FIXME Think abount ignoring. It's
+											// rather dangerous. Maybe some
+											// handling should be implemented
+public interface TiesJsonRequest {
 
 }

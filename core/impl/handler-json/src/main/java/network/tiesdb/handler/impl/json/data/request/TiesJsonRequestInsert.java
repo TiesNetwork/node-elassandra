@@ -13,26 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package network.tiesdb.api;
+package network.tiesdb.handler.impl.json.data.request;
 
 /**
- * TiesDB version API.
- * 
- * <P>
- * Defines common version functions.
- * 
+ * Root class for TiesDB JSON "insert" request.
+ *  
  * @author Anton Filatov (filatov@ties.network)
  */
-public interface TiesVersion {
-
-    static TiesVersion current = TiesApiVersion.v_0_0_1_prealpha;
-
-    Integer getMajorVersion();
-
-    Integer getMinorVersion();
-
-    Integer getIncrementalVersion();
-
-    String getQualifer();
-
+public class TiesJsonRequestInsert {
+	public String test;
+	public TiesJsonRequestSelect select;
 }

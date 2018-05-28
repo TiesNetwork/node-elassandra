@@ -19,6 +19,7 @@ import java.util.List;
 
 import network.tiesdb.api.TiesVersion;
 import network.tiesdb.context.api.TiesServiceConfig;
+import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.transport.api.TiesTransport;
 
 /**
@@ -37,5 +38,7 @@ public interface TiesService {
 	TiesServiceConfig getTiesServiceConfig();
 
 	TiesVersion getVersion();
+	
+	TiesServiceScope newServiceScope();
 
 }
