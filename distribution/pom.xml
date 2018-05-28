@@ -49,7 +49,7 @@
         </dependency>
         <dependency>
             <groupId>com.tiesdb</groupId>
-            <artifactId>handler-json</artifactId>
+            <artifactId>handler-v0r0</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
