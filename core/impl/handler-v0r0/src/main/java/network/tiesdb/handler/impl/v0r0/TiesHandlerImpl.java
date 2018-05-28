@@ -161,7 +161,7 @@ public class TiesHandlerImpl implements TiesHandler, TiesDBProtocolHandler<TiesD
 
     @Override
     @SuppressWarnings("unchecked")
-    public <S> TiesDBProtocolHandler<? extends S> getHandler(Version localVersion, Version remoteVersion, S session)
+    public <S> TiesDBProtocolHandler<S> getHandler(Version localVersion, Version remoteVersion, S session)
             throws TiesDBProtocolException {
         if (!TiesDBProtocolV0R0.Conversation.class.isInstance(session)) {
             throw new TiesDBProtocolException("Protocol negotiation was not implemented yet");
