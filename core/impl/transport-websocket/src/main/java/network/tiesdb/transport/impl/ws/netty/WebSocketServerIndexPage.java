@@ -18,10 +18,10 @@
  */
 package network.tiesdb.transport.impl.ws.netty;
 
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 
 import org.stringtemplate.v4.*;
@@ -37,6 +37,7 @@ public final class WebSocketServerIndexPage {
 
     private static final String NEWLINE = System.lineSeparator();
 	private static final String STYLE = "eclipse";
+    private static final Charset DEFAULT_CHARSET = Charset.forName("UTF8");
 
 	//FIXME: Delete
     public static ByteBuf getContent(String webSocketLocation) {
@@ -121,16 +122,19 @@ public final class WebSocketServerIndexPage {
         // Unused
     }
 
-    public static ByteBuf getContent(File file) throws IOException {
-        return getContent(file, null);
+    public static ByteBuf getContent(InputStream is) throws IOException {
+        return getContent(is, null);
     }
 
-    public static ByteBuf getContent(File file, HashMap<String, Object> variables) throws IOException {
-        byte[] buffer = new byte[(int) file.length()];
-        String result = null;
-        try (FileInputStream fis = new FileInputStream(file); DataInputStream dis = new DataInputStream(fis)) {
-            dis.readFully(buffer);
-            result = new String(buffer, CharsetUtil.UTF_8);
+    public static ByteBuf getContent(InputStream is, HashMap<String, Object> variables) throws IOException {
+        String result = "";
+        {
+            StringBuilder sb = new StringBuilder();
+            byte[] buffer = new byte[2048];
+            for (int read = is.read(buffer); read != -1; read = is.read(buffer)) {
+                sb.append(DEFAULT_CHARSET.decode(ByteBuffer.wrap(buffer, 0, read)));
+            }
+            result = sb.toString();
         }
         if (null != variables) {
             ST st = new ST(result, '$', '$');

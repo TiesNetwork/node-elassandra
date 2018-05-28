@@ -42,6 +42,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 import java.io.File;
+import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 
@@ -78,47 +80,50 @@ public class WebSocketIndexPageHandler extends SimpleChannelInboundHandler<FullH
         }
         requestUriStr = requestUriStr.substring(1);
 
-        File resourceFile = new File(staticResourcesUrl.toURI().resolve(requestUriStr));
-        if (!resourceFile.exists() || !resourceFile.isFile()) {
+        URL resourceURL = new URL(staticResourcesUrl.toExternalForm() + requestUriStr);
+        try {
+            InputStream resourceStream = resourceURL.openStream();
+            try (InputStream resourceStreamOpened = resourceStream) {
+
+                // Send the resource data
+                String resourceFileExtension = getFileExtension(requestUriStr);
+                ByteBuf content = null;
+                if ("html".equals(resourceFileExtension)) {
+                    HashMap<String, Object> templateMap = new HashMap<>();
+                    templateMap.put("websocketLocation", getWebSocketLocation(ctx.pipeline(), req, websocketPath));
+                    content = WebSocketServerIndexPage.getContent(resourceStreamOpened, templateMap);
+                } else {
+                    content = WebSocketServerIndexPage.getContent(resourceStreamOpened);
+                }
+                if (null == content) {
+                    sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1, INTERNAL_SERVER_ERROR));
+                    return;
+                }
+                FullHttpResponse res = new DefaultFullHttpResponse(HTTP_1_1, OK, content);
+
+                switch (resourceFileExtension) {
+                case "html":
+                    res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "text/html; charset=UTF-8");
+                    break;
+                case "js":
+                    res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "application/javascript; charset=utf-8");
+                    break;
+                default:
+                    break;
+                }
+                HttpHeaders.setContentLength(res, content.readableBytes());
+
+                sendHttpResponse(ctx, req, res);
+            }
+        } catch (Exception e) {
             sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1, NOT_FOUND));
-            return;
         }
-
-        // Send the resource data
-        String resourceFileExtension = getFileExtension(resourceFile);
-        ByteBuf content = null;
-        if ("html".equals(resourceFileExtension)) {
-            HashMap<String, Object> templateMap = new HashMap<>();
-            templateMap.put("websocketLocation", getWebSocketLocation(ctx.pipeline(), req, websocketPath));
-            content = WebSocketServerIndexPage.getContent(resourceFile, templateMap);
-        } else {
-            content = WebSocketServerIndexPage.getContent(resourceFile);
-        }
-        if (null == content) {
-            sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1, INTERNAL_SERVER_ERROR));
-            return;
-        }
-        FullHttpResponse res = new DefaultFullHttpResponse(HTTP_1_1, OK, content);
-
-        switch (resourceFileExtension) {
-        case "html":
-            res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "text/html; charset=UTF-8");
-            break;
-        case "js":
-            res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "application/javascript; charset=utf-8");
-            break;
-        default:
-            break;
-        }
-        HttpHeaders.setContentLength(res, content.readableBytes());
-
-        sendHttpResponse(ctx, req, res);
     }
 
-    private String getFileExtension(File resourceFile) {
-        int i = resourceFile.getName().lastIndexOf('.');
+    private String getFileExtension(String fileName) {
+        int i = fileName.lastIndexOf('.');
         if (i > 0) {
-            return resourceFile.getName().substring(i + 1);
+            return fileName.substring(i + 1);
         }
         return "";
     }
