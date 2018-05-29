@@ -127,13 +127,16 @@ set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% -Dcassandra.storagedir="%CASSANDRA_HOME%
 if /i "%ARG%" == "INSTALL" goto doInstallOperation
 if /i "%ARG%" == "UNINSTALL" goto doInstallOperation
 
+
+set PATH="%JAVA_HOME%\bin";%PATH%
+
 echo Starting Cassandra Server
-"%JAVA_HOME%\bin\java" %JAVA_OPTS% %CASSANDRA_PARAMS% -cp %CASSANDRA_CLASSPATH% "%CASSANDRA_MAIN%"
+START "TiesDB" /HIGH java %JAVA_OPTS% %CASSANDRA_PARAMS% -cp %CASSANDRA_CLASSPATH% "%CASSANDRA_MAIN%"
 goto finally
 
 REM -----------------------------------------------------------------------------
 :doInstallOperation
-set SERVICE_JVM="cassandra"
+set SERVICE_JVM="TiesDB"
 rem location of Prunsrv
 set PATH_PRUNSRV=%CASSANDRA_HOME%\bin\daemon\
 set PR_LOGPATH=%PATH_PRUNSRV%

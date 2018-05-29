@@ -23,58 +23,74 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import network.tiesdb.exception.TiesShutdownException;
 import network.tiesdb.exception.TiesStartupException;
 
 /**
  * Bootstrap class for TiesDB.
  * 
- * <P>Contains boot and initialization sequences for TiesDB bootstrapping.
+ * <P>
+ * Contains boot and initialization sequences for TiesDB bootstrapping.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public class TiesBootstrap {
 
-	private static final Logger logger = LoggerFactory.getLogger(TiesBootstrap.class);
+    private static final Logger logger = LoggerFactory.getLogger(TiesBootstrap.class);
 
-	private static final String DEFAULT_DELEGATE_CLASS_NAME = "org.apache.cassandra.service.ElassandraDaemon";
+    private static final String DEFAULT_DELEGATE_CLASS_NAME = "org.apache.cassandra.service.ElassandraDaemon";
 
-	public void init(String... args) throws TiesStartupException {
-		if (args.length > 0 && args[0].equals("--no-storage")) {
-			logger.debug("Found TiesDB --no-storage option. No storage capability will be exposed");
-			initTiesDb();
-		} else {
-			logger.trace("Searching storage system class");
-			String[] delegateArgs = args;
-			String delegateClassName = DEFAULT_DELEGATE_CLASS_NAME;
-			if (args.length > 0) {
-				delegateClassName = args[0];
-				delegateArgs = Arrays.copyOfRange(args, 1, args.length);
-			}
-			Class<?> delegateClass;
-			try {
-				delegateClass = Thread.currentThread().getContextClassLoader().loadClass(delegateClassName);
-			} catch (ClassNotFoundException e) {
-				throw new TiesStartupException(1, "Could not find delegate startup class \"" + delegateClassName + "\"", e);
-			}
-			logger.debug("Storage system class found {}", delegateClass.getName());
-			initTiesDb();
-			logger.debug("Switching to the storage system boot process");
-			try {
-				delegateClass.getDeclaredMethod("main", String[].class).invoke(delegateClass, (Object) delegateArgs);
-			} catch (Throwable e) {
-				throw new TiesStartupException(2,
-						"Could not start storage system boot process from class \"" + delegateClass.getName() + "\"",
-						e);
-			}
-		}
-	}
+    private Class<?> delegateClass;
 
-	// TODO add a parameter or make another function for synchronous
-	// initialization
-	private void initTiesDb() {
-		ThreadGroup tiesThreadGroup = new ThreadGroup(Thread.currentThread().getThreadGroup(), "TiesDB");
-		Thread tiesInitThread = new Thread(tiesThreadGroup, new TiesInitialization(), "TiesInitialization");
-		tiesInitThread.setDaemon(false);
-		tiesInitThread.start();
-	}
+    public synchronized void init(String... args) throws TiesStartupException {
+        if (args.length > 0 && args[0].equals("--no-storage")) {
+            logger.debug("Found TiesDB --no-storage option. No storage capability will be exposed");
+            initTiesDb();
+        } else {
+            logger.trace("Searching storage system class");
+            String[] delegateArgs = args;
+            String delegateClassName = DEFAULT_DELEGATE_CLASS_NAME;
+            if (args.length > 0) {
+                delegateClassName = args[0];
+                delegateArgs = Arrays.copyOfRange(args, 1, args.length);
+            }
+            try {
+                delegateClass = Thread.currentThread().getContextClassLoader().loadClass(delegateClassName);
+            } catch (ClassNotFoundException e) {
+                throw new TiesStartupException(1, "Could not find delegate startup class \"" + delegateClassName + "\"", e);
+            }
+            logger.debug("Storage system class found {}", delegateClass.getName());
+            initTiesDb();
+            logger.debug("Switching to the storage system boot process");
+            try {
+                delegateClass.getDeclaredMethod("main", String[].class).invoke(delegateClass, (Object) delegateArgs);
+            } catch (Throwable e) {
+                throw new TiesStartupException(2,
+                        "Could not start storage system boot process from class \"" + delegateClass.getName() + "\"", e);
+            }
+        }
+    }
+
+    public synchronized void shutdown(String... args) throws TiesShutdownException {
+        if (null != delegateClass) {
+            logger.debug("Storage system class {}", delegateClass.getName());
+            initTiesDb();
+            logger.debug("Switching to the storage system stop process");
+            try {
+                delegateClass.getDeclaredMethod("stop", String[].class).invoke(delegateClass, (Object) args);
+            } catch (Throwable e) {
+                throw new TiesShutdownException(1,
+                        "Could not start storage system boot process from class \"" + delegateClass.getName() + "\"", e);
+            }
+        }
+    }
+
+    // TODO add a parameter or make another function for synchronous
+    // initialization
+    private void initTiesDb() {
+        ThreadGroup tiesThreadGroup = new ThreadGroup(Thread.currentThread().getThreadGroup(), "TiesDB");
+        Thread tiesInitThread = new Thread(tiesThreadGroup, new TiesInitialization(), "TiesInitialization");
+        tiesInitThread.setDaemon(false);
+        tiesInitThread.start();
+    }
 }
