@@ -16,13 +16,15 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller;
+package network.tiesdb.handler.impl.v0r0.controller.request;
 
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.DEFAULT_DIGEST_ALG;
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.acceptEach;
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.end;
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.checkSignature;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.DEFAULT_DIGEST_ALG;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.checkSignature;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.end;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Date;
 import java.util.function.Consumer;
 
@@ -37,7 +39,8 @@ import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 
-import network.tiesdb.handler.impl.v0r0.controller.SignatureController.Signature;
+import network.tiesdb.handler.impl.v0r0.controller.Controller;
+import network.tiesdb.handler.impl.v0r0.controller.request.SignatureController.Signature;
 import network.tiesdb.handler.impl.v0r0.util.FormatUtil;
 import one.utopic.sparse.ebml.format.BytesFormat;
 import one.utopic.sparse.ebml.format.DateFormat;
@@ -58,6 +61,7 @@ public class EntryHeaderController implements Controller<EntryHeaderController.E
         private Integer entryNetwork;
         private byte[] entryOldHash;
         private byte[] entryFldHash;
+        private byte[] rawBytes;
 
         private final Signature signature = new Signature();
 
@@ -66,7 +70,7 @@ public class EntryHeaderController implements Controller<EntryHeaderController.E
             return "EntryHeader [tablespaceName=" + tablespaceName + ", tableName=" + tableName + ", entryType=" + entryType
                     + ", entryTimestamp=" + entryTimestamp + ", entryVersion=" + entryVersion + ", entryNetwork=" + entryNetwork
                     + ", entryOldHash=" + FormatUtil.pringHex(entryOldHash) + ", entryFldHash=" + FormatUtil.pringHex(entryFldHash)
-                    + ", signature=" + signature + "]";
+                    + ", rawBytes=" + FormatUtil.pringHex(rawBytes) + ", signature=" + signature + "]";
         }
 
         public String getTablespaceName() {
@@ -103,6 +107,10 @@ public class EntryHeaderController implements Controller<EntryHeaderController.E
 
         public Signature getSignature() {
             return signature;
+        }
+
+        public byte[] getRawBytes() {
+            return rawBytes;
         }
 
     }
@@ -178,26 +186,33 @@ public class EntryHeaderController implements Controller<EntryHeaderController.E
 
     @Override
     public boolean accept(Conversation session, Event e, EntryHeader header) throws TiesDBProtocolException {
-        try {
-            headerDigest.reset();
-            session.addReaderListener(headerHashListener);
-            acceptEach(session, e, this::acceptEntryHeader, header);
-            byte[] headerHash = new byte[headerDigest.getDigestSize()];
-            if (headerDigest.getDigestSize() == headerDigest.doFinal(headerHash, 0)) {
-                LOG.debug("ENTRY_HASH: {}", new Object() {
-                    @Override
-                    public String toString() {
-                        return DatatypeConverter.printHexBinary(headerHash);
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Consumer<Byte> rawBytesListener = baos::write;
+            session.addReaderListener(rawBytesListener);
+            try {
+                headerDigest.reset();
+                session.addReaderListener(headerHashListener);
+                acceptEach(session, e, this::acceptEntryHeader, header);
+                byte[] headerHash = new byte[headerDigest.getDigestSize()];
+                if (headerDigest.getDigestSize() == headerDigest.doFinal(headerHash, 0)) {
+                    LOG.debug("ENTRY_HASH: {}", new Object() {
+                        @Override
+                        public String toString() {
+                            return DatatypeConverter.printHexBinary(headerHash);
+                        }
+                    });
+                    if (!checkSignature(headerHash, header.signature)) {
+                        throw new TiesDBProtocolException("Header signature check failed.");
                     }
-                });
-                if (!checkSignature(headerHash, header.signature)) {
-                    throw new TiesDBProtocolException("Header signature check failed.");
+                } else {
+                    throw new TiesDBProtocolException("Header digest failed to compute hash");
                 }
-            } else {
-                throw new TiesDBProtocolException("Header digest failed to compute hash");
+            } finally {
+                session.removeReaderListener(headerHashListener);
             }
-        } finally {
-            session.removeReaderListener(headerHashListener);
+            header.rawBytes = baos.toByteArray();
+        } catch (IOException ex) {
+            throw new TiesDBProtocolException(ex);
         }
         return true;
     }

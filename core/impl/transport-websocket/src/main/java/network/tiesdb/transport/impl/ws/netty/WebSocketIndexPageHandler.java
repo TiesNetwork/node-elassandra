@@ -105,6 +105,9 @@ public class WebSocketIndexPageHandler extends SimpleChannelInboundHandler<FullH
                 case "html":
                     res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "text/html; charset=UTF-8");
                     break;
+                case "css":
+                    res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "text/css; charset=UTF-8");
+                    break;
                 case "js":
                     res.headers().set(HttpHeaders.Names.CONTENT_TYPE, "application/javascript; charset=utf-8");
                     break;

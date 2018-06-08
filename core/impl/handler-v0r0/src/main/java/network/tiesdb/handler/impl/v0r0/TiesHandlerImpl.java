@@ -41,8 +41,8 @@ import network.tiesdb.api.TiesVersion;
 import network.tiesdb.context.api.TiesHandlerConfig;
 import network.tiesdb.exception.TiesException;
 import network.tiesdb.handler.api.TiesHandler;
-import network.tiesdb.handler.impl.v0r0.controller.Request;
-import network.tiesdb.handler.impl.v0r0.controller.RequestController;
+import network.tiesdb.handler.impl.v0r0.controller.request.Request;
+import network.tiesdb.handler.impl.v0r0.controller.request.RequestController;
 import network.tiesdb.handler.impl.v0r0.processor.RequestProcessor;
 import network.tiesdb.handler.impl.v0r0.util.StreamInput;
 import network.tiesdb.handler.impl.v0r0.util.StreamOutput;
@@ -115,7 +115,7 @@ public class TiesHandlerImpl implements TiesHandler, TiesDBProtocolHandler<TiesD
                 break;
             } catch (TiesDBException e) {
                 LOG.error("Can't handle request {}", tiesRequest, e);
-                throw new TiesException("Can't handle request " + tiesRequest, e);
+                throw new TiesException(e.getMessage(), e);
             }
         }
 
@@ -149,6 +149,7 @@ public class TiesHandlerImpl implements TiesHandler, TiesDBProtocolHandler<TiesD
                 throw new TiesDBProtocolException("Illegal root event: " + event);
             }
         } catch (Exception e) {
+            LOG.debug("Handle exception", e);
             session.accept(new Event(TiesDBType.ERROR, EventState.BEGIN));
             for (Throwable th = e; null != th; th = th.getCause()) {
                 session.accept(new Event(TiesDBType.ERROR_MESSAGE, EventState.BEGIN));
@@ -161,8 +162,7 @@ public class TiesHandlerImpl implements TiesHandler, TiesDBProtocolHandler<TiesD
 
     @Override
     @SuppressWarnings("unchecked")
-    public <S> TiesDBProtocolHandler<S> getHandler(Version localVersion, Version remoteVersion, S session)
-            throws TiesDBProtocolException {
+    public <S> TiesDBProtocolHandler<S> getHandler(Version localVersion, Version remoteVersion, S session) throws TiesDBProtocolException {
         if (!TiesDBProtocolV0R0.Conversation.class.isInstance(session)) {
             throw new TiesDBProtocolException("Protocol negotiation was not implemented yet");
         }

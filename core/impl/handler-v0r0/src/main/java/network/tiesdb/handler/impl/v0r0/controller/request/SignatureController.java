@@ -16,7 +16,9 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller;
+package network.tiesdb.handler.impl.v0r0.controller.request;
+
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.end;
 
 import java.util.function.Consumer;
 
@@ -29,9 +31,9 @@ import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 
+import network.tiesdb.handler.impl.v0r0.controller.Controller;
 import network.tiesdb.handler.impl.v0r0.util.FormatUtil;
 import one.utopic.sparse.ebml.format.BytesFormat;
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.end;
 
 public class SignatureController implements Controller<SignatureController.Signature> {
 

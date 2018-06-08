@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller;
+package network.tiesdb.handler.impl.v0r0.controller.request;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -24,7 +24,8 @@ import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 
-import network.tiesdb.handler.impl.v0r0.controller.ModificationRequestController.ModificationRequest;
+import network.tiesdb.handler.impl.v0r0.controller.Controller;
+import network.tiesdb.handler.impl.v0r0.controller.request.ModificationRequestController.ModificationRequest;
 
 public class RequestController implements Controller<AtomicReference<Request>> {
 

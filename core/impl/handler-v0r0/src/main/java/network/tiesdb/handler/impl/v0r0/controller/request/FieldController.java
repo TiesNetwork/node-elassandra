@@ -16,12 +16,15 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller;
+package network.tiesdb.handler.impl.v0r0.controller.request;
 
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.DEFAULT_DIGEST_ALG;
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.acceptEach;
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.end;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.DEFAULT_DIGEST_ALG;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.end;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.function.Consumer;
 
 import javax.xml.bind.DatatypeConverter;
@@ -35,6 +38,7 @@ import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 
+import network.tiesdb.handler.impl.v0r0.controller.Controller;
 import network.tiesdb.handler.impl.v0r0.util.FormatUtil;
 import one.utopic.sparse.ebml.format.ASCIIStringFormat;
 import one.utopic.sparse.ebml.format.BytesFormat;
@@ -47,17 +51,15 @@ public class FieldController implements Controller<FieldController.Field> {
     public static class Field {
 
         private String name;
-
         private String type;
-
         private byte[] hash;
-
-        private byte[] value;
+        private byte[] rawValue;
+        private byte[] rawBytes;
 
         @Override
         public String toString() {
-            return "Field [name=" + name + ", type=" + type + ", hash=" + FormatUtil.pringHex(hash) + ", value="
-                    + FormatUtil.pringHex(value) + "]";
+            return "Field [name=" + name + ", type=" + type + ", hash=" + Arrays.toString(hash) + ", rawValue="
+                    + FormatUtil.pringHex(rawValue) + ", rawBytes=" + FormatUtil.pringHex(rawBytes) + "]";
         }
 
         public String getName() {
@@ -72,8 +74,12 @@ public class FieldController implements Controller<FieldController.Field> {
             return hash;
         }
 
-        public byte[] getValue() {
-            return value;
+        public byte[] getRawValue() {
+            return rawValue;
+        }
+
+        public byte[] getRawBytes() {
+            return rawBytes;
         }
 
     }
@@ -112,11 +118,11 @@ public class FieldController implements Controller<FieldController.Field> {
             end(session, e);
             return true;
         case FIELD_VALUE:
-            field.value = session.read(BytesFormat.INSTANCE);
+            field.rawValue = session.read(BytesFormat.INSTANCE);
             LOG.debug("FIELD_VALUE: {}", new Object() {
                 @Override
                 public String toString() {
-                    return DatatypeConverter.printHexBinary(field.value);
+                    return DatatypeConverter.printHexBinary(field.rawValue);
                 }
             });
             end(session, e);
@@ -129,26 +135,34 @@ public class FieldController implements Controller<FieldController.Field> {
 
     @Override
     public boolean accept(Conversation session, Event e, Field field) throws TiesDBProtocolException {
-        try {
-            fieldDigest.reset();
-            session.addReaderListener(fieldHashListener);
-            acceptEach(session, e, this::acceptField, field);
-            if (null == field.hash) {
-                byte[] fieldHash = new byte[fieldDigest.getDigestSize()];
-                if (fieldDigest.getDigestSize() == fieldDigest.doFinal(fieldHash, 0)) {
-                    LOG.debug("FIELD_HASH_CALCULATED: {}", new Object() {
-                        @Override
-                        public String toString() {
-                            return DatatypeConverter.printHexBinary(fieldHash);
-                        }
-                    });
-                    field.hash = fieldHash;
-                } else {
-                    throw new TiesDBProtocolException("Field digest failed to compute hash");
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Consumer<Byte> rawBytesListener = baos::write;
+            session.addReaderListener(rawBytesListener);
+            try {
+                fieldDigest.reset();
+                session.addReaderListener(fieldHashListener);
+                acceptEach(session, e, this::acceptField, field);
+                if (null == field.hash) {
+                    byte[] fieldHash = new byte[fieldDigest.getDigestSize()];
+                    if (fieldDigest.getDigestSize() == fieldDigest.doFinal(fieldHash, 0)) {
+                        LOG.debug("FIELD_HASH_CALCULATED: {}", new Object() {
+                            @Override
+                            public String toString() {
+                                return DatatypeConverter.printHexBinary(fieldHash);
+                            }
+                        });
+                        field.hash = fieldHash;
+                    } else {
+                        throw new TiesDBProtocolException("Field digest failed to compute hash");
+                    }
                 }
+            } finally {
+                session.removeReaderListener(fieldHashListener);
+                session.removeReaderListener(rawBytesListener);
             }
-        } finally {
-            session.removeReaderListener(fieldHashListener);
+            field.rawBytes = baos.toByteArray();
+        } catch (IOException ex) {
+            throw new TiesDBProtocolException(ex);
         }
         return true;
     }

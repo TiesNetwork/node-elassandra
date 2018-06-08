@@ -20,7 +20,7 @@ package network.tiesdb.service.scope.api;
 
 import java.util.Map;
 
-public interface TiesServiceScopeActionInsert {
+public interface TiesServiceScopeAction {
 
     long getEntryVersion();
 

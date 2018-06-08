@@ -16,9 +16,9 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller;
+package network.tiesdb.handler.impl.v0r0.controller.request;
 
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -28,13 +28,15 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.ebml.TiesDBType;
 
-public class MultiController<T> implements Controller<Consumer<T>> {
+import network.tiesdb.handler.impl.v0r0.controller.Controller;
+
+public class ListController<T> implements Controller<Consumer<T>> {
 
     private final Controller<T> elementController;
     private final TiesDBType elementType;
     private final Supplier<T> supplier;
 
-    public MultiController(TiesDBType elementType, Supplier<T> supplier, Controller<T> elementController) {
+    public ListController(TiesDBType elementType, Supplier<T> supplier, Controller<T> elementController) {
         this.elementType = elementType;
         this.supplier = supplier;
         this.elementController = elementController;

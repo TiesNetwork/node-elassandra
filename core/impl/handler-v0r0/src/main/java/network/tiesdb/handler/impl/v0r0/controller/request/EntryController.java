@@ -16,10 +16,10 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller;
+package network.tiesdb.handler.impl.v0r0.controller.request;
 
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.acceptEach;
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.checkEntryFieldsHash;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.checkEntryFieldsHash;
 
 import java.util.HashMap;
 
@@ -28,8 +28,9 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.ebml.TiesDBType;
 
-import network.tiesdb.handler.impl.v0r0.controller.EntryHeaderController.EntryHeader;
-import network.tiesdb.handler.impl.v0r0.controller.FieldController.Field;
+import network.tiesdb.handler.impl.v0r0.controller.Controller;
+import network.tiesdb.handler.impl.v0r0.controller.request.EntryHeaderController.EntryHeader;
+import network.tiesdb.handler.impl.v0r0.controller.request.FieldController.Field;
 
 public class EntryController implements Controller<EntryController.Entry> {
 
@@ -54,11 +55,11 @@ public class EntryController implements Controller<EntryController.Entry> {
     }
 
     private final EntryHeaderController entryHeaderController;
-    private final MultiController<Field> fieldListController;
+    private final ListController<Field> fieldListController;
 
     public EntryController() {
         this.entryHeaderController = new EntryHeaderController();
-        this.fieldListController = new MultiController<>(TiesDBType.FIELD, () -> new Field(), new FieldController());
+        this.fieldListController = new ListController<>(TiesDBType.FIELD, () -> new Field(), new FieldController());
     }
 
     private boolean acceptEntry(Conversation session, Event e, Entry entry) throws TiesDBProtocolException {

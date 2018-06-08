@@ -21,8 +21,10 @@ package network.tiesdb.transport.impl.ws.netty;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
+import network.tiesdb.exception.TiesException;
 import network.tiesdb.transport.api.TiesTransport;
 
 import org.slf4j.Logger;
@@ -43,22 +45,23 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
-        // ping and pong frames already handled
-
-        if (frame instanceof TextWebSocketFrame || frame instanceof BinaryWebSocketFrame) {
-            // Send the uppercase string back.
-            //String request = ((TextWebSocketFrame) frame).text();
+        if (frame instanceof BinaryWebSocketFrame) {
             logger.info("{} received {} bytes", ctx.channel(), frame.content().readableBytes());
-            
-			try (WebSocketRequestHandler request = new WebSocketRequestHandler(frame)) {
-				try (WebSocketResponseHandler response = new WebSocketResponseHandler(ctx)) {
-					transport.getHandler().handle(request, response);
-				}
-			}
-
+            try {
+                try (WebSocketRequestHandler request = new WebSocketRequestHandler(frame)) {
+                    try (WebSocketResponseHandler response = new WebSocketResponseHandler(ctx)) {
+                        transport.getHandler().handle(request, response);
+                    }
+                }
+            } catch (TiesException e) {
+                logger.error("Channel error: {}", e.getMessage(), e);
+                ctx.channel().writeAndFlush(new CloseWebSocketFrame(1008, e.getMessage()));
+            }
             //ctx.channel().writeAndFlush(new TextWebSocketFrame(request.toUpperCase(Locale.US)));
         } else {
-            throw new UnsupportedOperationException("unsupported frame type: " + frame.getClass().getName());
+            logger.error("Unsupported frame type: {}", frame.getClass().getName());
+            ctx.channel().writeAndFlush(new CloseWebSocketFrame(1003, "Only Binary frames are supported"));
+            //throw new UnsupportedOperationException("unsupported frame type: " + frame.getClass().getName());
         }
     }
 }

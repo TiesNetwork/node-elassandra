@@ -22,6 +22,8 @@ public interface TiesValue {
 
     String getType();
 
+    Object get();
+
     byte[] getBytes();
 
     byte[] getFieldFullRawBytes();

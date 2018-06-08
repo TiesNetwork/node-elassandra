@@ -19,7 +19,7 @@
         document.getElementById('responseText').editor = editor;
         var areaEditor = CodeMirror.fromTextArea(document.getElementById('messageArea'), options);
         document.getElementById('messageArea').editor = areaEditor;
-        areaEditor.setValue(localStorage.getItem('messageAreaTextJSON') || '{\n  "type":"INSERT",\n  "request": {}\n}');
+        areaEditor.setValue(localStorage.getItem('messageAreaTextJSON'));
       }
    </script>
    <body onload="onLoad()">

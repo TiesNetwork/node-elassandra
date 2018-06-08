@@ -16,7 +16,13 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller;
+package network.tiesdb.handler.impl.v0r0.controller.request;
+
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.end;
+
+import java.math.BigInteger;
+import java.util.LinkedList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,13 +32,11 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.ebml.TiesDBRequestConsistency;
 import com.tiesdb.protocol.v0r0.ebml.format.TiesDBRequestConsistencyFormat;
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.acceptEach;
-import static network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.end;
 
-import java.util.LinkedList;
-
-import network.tiesdb.handler.impl.v0r0.controller.EntryController.Entry;
+import network.tiesdb.handler.impl.v0r0.controller.Controller;
+import network.tiesdb.handler.impl.v0r0.controller.request.EntryController.Entry;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
+import one.utopic.sparse.ebml.format.BigIntegerFormat;
 
 public class ModificationRequestController implements Controller<ModificationRequestController.ModificationRequest> {
 
@@ -40,12 +44,18 @@ public class ModificationRequestController implements Controller<ModificationReq
 
     public static class ModificationRequest implements Request {
 
+        private BigInteger messageId;
         private TiesDBRequestConsistency consistency;
         private LinkedList<Entry> entries = new LinkedList<>();
 
         @Override
         public String toString() {
-            return "ModificationRequest [consistency=" + consistency + ", entries=" + entries + "]";
+            return "ModificationRequest [messageId=" + messageId + ", consistency=" + consistency + ", entries=" + entries + "]";
+        }
+
+        @Override
+        public <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+            return v.on(this);
         }
 
         public TiesDBRequestConsistency getConsistency() {
@@ -57,8 +67,8 @@ public class ModificationRequestController implements Controller<ModificationReq
         }
 
         @Override
-        public void accept(Visitor v) throws TiesServiceScopeException {
-            v.on(this);
+        public BigInteger getMessageId() {
+            return messageId;
         }
 
     }
@@ -74,6 +84,11 @@ public class ModificationRequestController implements Controller<ModificationReq
         case CONSISTENCY:
             r.consistency = session.read(TiesDBRequestConsistencyFormat.INSTANCE);
             LOG.debug("CONSISTENCY : {}", r.consistency);
+            end(session, e);
+            return true;
+        case MESSAGE_ID:
+            r.messageId = session.read(BigIntegerFormat.INSTANCE);
+            LOG.debug("MESSAGE_ID : {}", r.messageId);
             end(session, e);
             return true;
         case ENTRY:
