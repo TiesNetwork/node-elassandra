@@ -16,11 +16,10 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller.request;
+package network.tiesdb.handler.impl.v0r0.controller.reader;
 
 import static java.util.Objects.requireNonNull;
 
-import java.math.BigInteger;
 import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,36 +38,20 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.EventState;
 
-import network.tiesdb.handler.impl.v0r0.controller.Controller;
-import network.tiesdb.handler.impl.v0r0.controller.request.EntryController.Entry;
-import network.tiesdb.handler.impl.v0r0.controller.request.FieldController.Field;
-import network.tiesdb.handler.impl.v0r0.controller.request.ModificationRequestController.ModificationRequest;
-import network.tiesdb.handler.impl.v0r0.controller.request.SignatureController.Signature;
-import network.tiesdb.service.scope.api.TiesServiceScopeException;
+import network.tiesdb.handler.impl.v0r0.controller.reader.EntryReader.Entry;
+import network.tiesdb.handler.impl.v0r0.controller.reader.FieldReader.Field;
+import network.tiesdb.handler.impl.v0r0.controller.reader.SignatureReader.Signature;
 
-public interface Request {
-
-    interface Visitor<T> {
-
-        T on(ModificationRequest modificationRequest) throws TiesServiceScopeException;
-
-    }
-
-    <T> T accept(Visitor<T> v) throws TiesServiceScopeException;
-
-    BigInteger getMessageId();
-}
-
-final class RequestUtil {
+final class ReaderUtil {
 
     public static final String DEFAULT_DIGEST_ALG = DigestManager.KECCAK_256;
 
-    private static final Logger LOG = LoggerFactory.getLogger(RequestUtil.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ReaderUtil.class);
 
-    private RequestUtil() {
+    private ReaderUtil() {
     }
 
-    static <T> void acceptEach(Conversation session, Event rootEvent, Controller<T> controller, T t) throws TiesDBProtocolException {
+    static <T> void acceptEach(Conversation session, Event rootEvent, Reader<T> controller, T t) throws TiesDBProtocolException {
         requireNonNull(session);
         requireNonNull(rootEvent);
         if (!EventState.BEGIN.equals(rootEvent.getState())) {

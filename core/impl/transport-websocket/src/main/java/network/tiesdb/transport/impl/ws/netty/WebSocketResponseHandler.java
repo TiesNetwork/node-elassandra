@@ -22,8 +22,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import network.tiesdb.transport.api.TiesResponse;
 
 /**
@@ -33,65 +34,65 @@ import network.tiesdb.transport.api.TiesResponse;
  */
 public class WebSocketResponseHandler implements TiesResponse, AutoCloseable {
 
-	private static class WrappedOutputStream extends ByteArrayOutputStream {
+    private static class WrappedOutputStream extends ByteArrayOutputStream {
 
-		volatile boolean sentAndClosed = false;
-		private final ChannelHandlerContext ctx;
+        volatile boolean sentAndClosed = false;
+        private final ChannelHandlerContext ctx;
 
-		private WrappedOutputStream(ChannelHandlerContext ctx) {
-			if (null == ctx) {
-				throw new NullPointerException("The ctx should not be null");
-			}
-			this.ctx = ctx;
-		}
+        private WrappedOutputStream(ChannelHandlerContext ctx) {
+            if (null == ctx) {
+                throw new NullPointerException("The ctx should not be null");
+            }
+            this.ctx = ctx;
+        }
 
-		private void check() {
-			if (sentAndClosed) {
-				throw new IllegalStateException("Stream was sent and closed already");
-			}
-		}
+        private void check() {
+            if (sentAndClosed) {
+                throw new IllegalStateException("Stream was sent and closed already");
+            }
+        }
 
-		@Override
-		public synchronized void write(int b) {
-			check();
-			super.write(b);
-		}
+        @Override
+        public synchronized void write(int b) {
+            check();
+            super.write(b);
+        }
 
-		@Override
-		public synchronized void write(byte[] b, int off, int len) {
-			check();
-			super.write(b, off, len);
-		}
+        @Override
+        public synchronized void write(byte[] b, int off, int len) {
+            check();
+            super.write(b, off, len);
+        }
 
-		@Override
-		public void close() throws IOException {
-			if (!sentAndClosed) {
-				try {
-					ctx.channel().writeAndFlush(new TextWebSocketFrame(toString())).sync();
-					sentAndClosed = true;
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-			}
-			super.close();
-		}
+        @Override
+        public void close() throws IOException {
+            if (!sentAndClosed) {
+                try {
+                    ctx.channel().writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(toByteArray()))).sync();
+                    sentAndClosed = true;
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            super.close();
+        }
 
-	}
+    }
 
-	private final WrappedOutputStream os;
+    private final WrappedOutputStream os;
 
-	public WebSocketResponseHandler(ChannelHandlerContext ctx) {
-		this.os = new WrappedOutputStream(ctx);
-	}
+    public WebSocketResponseHandler(ChannelHandlerContext ctx) {
+        this.os = new WrappedOutputStream(ctx);
+    }
 
-	@Override
-	public OutputStream getOutputStream() {
-		return os;
-	}
+    @Override
+    public OutputStream getOutputStream() {
+        return os;
+    }
 
-	@Override
-	public void close() throws Exception {
-		os.close();
-	}
+    @Override
+    public void close() throws Exception {
+        os.close();
+    }
 
 }

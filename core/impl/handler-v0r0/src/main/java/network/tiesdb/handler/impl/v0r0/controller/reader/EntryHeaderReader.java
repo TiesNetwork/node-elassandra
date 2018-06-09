@@ -16,12 +16,12 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller.request;
+package network.tiesdb.handler.impl.v0r0.controller.reader;
 
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.DEFAULT_DIGEST_ALG;
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.checkSignature;
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.end;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.DEFAULT_DIGEST_ALG;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.checkSignature;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.end;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -39,17 +39,16 @@ import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 
-import network.tiesdb.handler.impl.v0r0.controller.Controller;
-import network.tiesdb.handler.impl.v0r0.controller.request.SignatureController.Signature;
+import network.tiesdb.handler.impl.v0r0.controller.reader.SignatureReader.Signature;
 import network.tiesdb.handler.impl.v0r0.util.FormatUtil;
 import one.utopic.sparse.ebml.format.BytesFormat;
 import one.utopic.sparse.ebml.format.DateFormat;
 import one.utopic.sparse.ebml.format.IntegerFormat;
 import one.utopic.sparse.ebml.format.UTF8StringFormat;
 
-public class EntryHeaderController implements Controller<EntryHeaderController.EntryHeader> {
+public class EntryHeaderReader implements Reader<EntryHeaderReader.EntryHeader> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(EntryHeaderController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(EntryHeaderReader.class);
 
     public static class EntryHeader {
 
@@ -63,6 +62,7 @@ public class EntryHeaderController implements Controller<EntryHeaderController.E
         private byte[] entryFldHash;
         private byte[] rawBytes;
 
+        private byte[] headerHash;
         private final Signature signature = new Signature();
 
         @Override
@@ -105,6 +105,10 @@ public class EntryHeaderController implements Controller<EntryHeaderController.E
             return entryFldHash;
         }
 
+        public byte[] getHeaderHash() {
+            return headerHash;
+        }
+
         public Signature getSignature() {
             return signature;
         }
@@ -117,12 +121,12 @@ public class EntryHeaderController implements Controller<EntryHeaderController.E
 
     private final Digest headerDigest;
     private final Consumer<Byte> headerHashListener;
-    private final SignatureController signatureController;
+    private final SignatureReader signatureReader;
 
-    public EntryHeaderController() {
+    public EntryHeaderReader() {
         this.headerDigest = DigestManager.getDigest(DEFAULT_DIGEST_ALG);
         this.headerHashListener = headerDigest::update;
-        this.signatureController = new SignatureController(headerHashListener);
+        this.signatureReader = new SignatureReader(headerHashListener);
     }
 
     public boolean acceptEntryHeader(Conversation session, Event e, EntryHeader header) throws TiesDBProtocolException {
@@ -179,7 +183,7 @@ public class EntryHeaderController implements Controller<EntryHeaderController.E
             return true;
         // $CASES-OMITTED$
         default:
-            return signatureController.accept(session, e, header.signature);
+            return signatureReader.accept(session, e, header.signature);
         // throw new TiesDBProtocolException("Illegal packet format");
         }
     }
@@ -201,11 +205,12 @@ public class EntryHeaderController implements Controller<EntryHeaderController.E
                             return DatatypeConverter.printHexBinary(headerHash);
                         }
                     });
+                    header.headerHash = headerHash;
                     if (!checkSignature(headerHash, header.signature)) {
                         throw new TiesDBProtocolException("Header signature check failed.");
                     }
                 } else {
-                    throw new TiesDBProtocolException("Header digest failed to compute hash");
+                    throw new TiesDBProtocolException("Header digest failed to compute headerHash");
                 }
             } finally {
                 session.removeReaderListener(headerHashListener);

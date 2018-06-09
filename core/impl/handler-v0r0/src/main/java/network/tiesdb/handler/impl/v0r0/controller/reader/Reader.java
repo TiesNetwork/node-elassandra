@@ -16,34 +16,32 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller;
+package network.tiesdb.handler.impl.v0r0.controller.reader;
 
-import static java.util.Objects.requireNonNull;
+import java.math.BigInteger;
 
-import java.security.SignatureException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.TreeSet;
-
-import javax.xml.bind.DatatypeConverter;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.tiesdb.lib.crypto.digest.DigestManager;
-import com.tiesdb.lib.crypto.digest.api.Digest;
-import com.tiesdb.lib.crypto.ecc.signature.ECKey;
 import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
-import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.EventState;
 
-import network.tiesdb.handler.impl.v0r0.controller.request.EntryController.Entry;
-import network.tiesdb.handler.impl.v0r0.controller.request.FieldController.Field;
-import network.tiesdb.handler.impl.v0r0.controller.request.SignatureController.Signature;
+import network.tiesdb.handler.impl.v0r0.controller.reader.ModificationRequestReader.ModificationRequest;
 
 @FunctionalInterface
-public interface Controller<T> {
+public interface Reader<T> {
+
+    interface Request {
+
+        interface Visitor<T> {
+
+            T on(ModificationRequest modificationRequest) throws TiesDBProtocolException;
+
+        }
+
+        <T> T accept(Visitor<T> v) throws TiesDBProtocolException;
+
+        BigInteger getMessageId();
+
+    }
 
     boolean accept(Conversation session, Event e, T t) throws TiesDBProtocolException;
 

@@ -16,35 +16,27 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller.request;
-
-import java.util.concurrent.atomic.AtomicReference;
+package network.tiesdb.handler.impl.v0r0.controller.reader;
 
 import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
+import com.tiesdb.protocol.v0r0.util.CheckedConsumer;
 
-import network.tiesdb.handler.impl.v0r0.controller.Controller;
-import network.tiesdb.handler.impl.v0r0.controller.request.ModificationRequestController.ModificationRequest;
+import network.tiesdb.handler.impl.v0r0.controller.reader.ModificationRequestReader.ModificationRequest;
 
-public class RequestController implements Controller<AtomicReference<Request>> {
+public class RequestReader implements Reader<CheckedConsumer<Reader.Request, TiesDBProtocolException>> {
 
-    private final ModificationRequestController modificationRequestController;
-
-    public RequestController() {
-        this.modificationRequestController = new ModificationRequestController();
-    }
+    private final ModificationRequestReader modificationRequestReader = new ModificationRequestReader();
 
     @Override
-    public boolean accept(Conversation session, Event e, AtomicReference<Request> requestRef) throws TiesDBProtocolException {
+    public boolean accept(Conversation session, Event e, CheckedConsumer<Reader.Request, TiesDBProtocolException> requestHandler) throws TiesDBProtocolException {
         switch (e.getType()) {
         case MODIFICATION_REQUEST:
             ModificationRequest request = new ModificationRequest();
-            boolean result = modificationRequestController.accept(session, e, request);
+            boolean result = modificationRequestReader.accept(session, e, request);
             if (result) {
-                if (!requestRef.compareAndSet(null, request)) {
-                    throw new TiesDBProtocolException("Request in progress, can't handle another one.");
-                }
+                requestHandler.accept(request);
             }
             return result;
         // $CASES-OMITTED$

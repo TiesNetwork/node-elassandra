@@ -16,25 +16,39 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.processor;
+package network.tiesdb.handler.impl.v0r0.controller;
 
 import static com.tiesdb.protocol.v0r0.ebml.TiesDBConstants.ENTRY_TYPE_INSERT;
 import static com.tiesdb.protocol.v0r0.ebml.TiesDBConstants.ENTRY_TYPE_UPDATE;
 import static java.util.Objects.requireNonNull;
 
+import java.math.BigInteger;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.tiesdb.protocol.exception.TiesDBException;
+import com.tiesdb.protocol.exception.TiesDBProtocolException;
+import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
+import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
+import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.EventState;
 import com.tiesdb.protocol.v0r0.ebml.format.UUIDFormat;
 
-import network.tiesdb.handler.impl.v0r0.controller.request.Request;
-import network.tiesdb.handler.impl.v0r0.controller.request.EntryController.Entry;
-import network.tiesdb.handler.impl.v0r0.controller.request.FieldController.Field;
-import network.tiesdb.handler.impl.v0r0.controller.request.ModificationRequestController.ModificationRequest;
+import network.tiesdb.handler.impl.v0r0.controller.reader.EntryReader.Entry;
+import network.tiesdb.handler.impl.v0r0.controller.reader.FieldReader.Field;
+import network.tiesdb.handler.impl.v0r0.controller.reader.ModificationRequestReader.ModificationRequest;
+import network.tiesdb.handler.impl.v0r0.controller.reader.Reader.Request;
+import network.tiesdb.handler.impl.v0r0.controller.reader.RequestReader;
+import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationResponseWriter.ModificationResponse;
+import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationResponseWriter.ModificationResult;
+import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationSuccessWriter.ModificationSuccessResult;
+import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationErrorWriter.ModificationErrorResult;
+import network.tiesdb.handler.impl.v0r0.controller.writer.ResponseWriter;
+import network.tiesdb.handler.impl.v0r0.controller.writer.Writer.Response;
 import network.tiesdb.service.api.TiesService;
 import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.service.scope.api.TiesServiceScopeAction;
@@ -50,51 +64,118 @@ import one.utopic.sparse.ebml.format.IntegerFormat;
 import one.utopic.sparse.ebml.format.LongFormat;
 import one.utopic.sparse.ebml.format.UTF8StringFormat;
 
-public class RequestProcessor implements Request.Visitor<Void> {
+public class RequestController implements Request.Visitor<Response> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RequestProcessor.class);
-    private static final Void VOID = null;
+    private static final Logger LOG = LoggerFactory.getLogger(RequestController.class);
 
     private final TiesService service;
+    private final RequestReader requestReader;
+    private final ResponseWriter responseWriter;
 
-    public RequestProcessor(TiesService service) {
+    public RequestController(TiesService service, RequestReader requestReader, ResponseWriter responseWriter) {
         this.service = service;
+        this.requestReader = requestReader;
+        this.responseWriter = responseWriter;
     }
 
-    public Void processRequest(Request request) throws TiesServiceScopeException {
+    public void handle(Conversation session) throws TiesDBException {
+        Event event;
+        while (null != requestReader && null != (event = session.get())) {
+            LOG.debug("RootBeginEvent: {}", event);
+            if (EventState.BEGIN.equals(event.getState())) {
+                try {
+                    if (requestReader.accept(session, event, request -> responseWriter.accept(session, processRequest(request)))) {
+                        continue;
+                    }
+                } catch (TiesDBProtocolException e) {
+                    throw new TiesDBException("Request failed", e);
+                }
+                LOG.warn("Skipped {}", event);
+                session.skip();
+                Event endEvent = session.get();
+                LOG.debug("RootEndEvent: {}", endEvent);
+                if (null != endEvent && EventState.END.equals(endEvent.getState()) && endEvent.getType().equals(event.getType())) {
+                    continue;
+                }
+            }
+            throw new TiesDBProtocolException("Illegal root event: " + event);
+        }
+    }
+
+    public Response processRequest(Request request) throws TiesDBProtocolException {
         if (null != request) {
             if (null == request.getMessageId()) {
-                throw new TiesServiceScopeException("Request MessageId is required");
+                throw new TiesDBProtocolException("Request MessageId is required");
             }
             return request.accept(this);
         }
-        throw new TiesServiceScopeException("Empty request");
+        throw new TiesDBProtocolException("Empty request");
     }
 
     @Override
-    public Void on(ModificationRequest request) throws TiesServiceScopeException {
+    public ModificationResponse on(ModificationRequest request) throws TiesDBProtocolException {
         requireNonNull(request);
 
         TiesServiceScope serviceScope = service.newServiceScope();
         LOG.debug("Service scope: {}", serviceScope);
+
+        LinkedList<ModificationResult> results = new LinkedList<>();
         for (Entry entry : request.getEntries()) {
 
-            TiesServiceScopeAction action = new TiesServiceScopeActionEntry(entry);
+            try {
+                TiesServiceScopeAction action = new TiesServiceScopeActionEntry(entry);
 
-            switch (entry.getHeader().getEntryType()) {
-            case ENTRY_TYPE_INSERT:
-                serviceScope.insert(action);
-                break;
-            case ENTRY_TYPE_UPDATE:
-                serviceScope.update(action);
-                break;
-            default:
-                throw new TiesServiceScopeException("Unknown EntryType " + entry.getHeader().getEntryType());
+                switch (entry.getHeader().getEntryType()) {
+                case ENTRY_TYPE_INSERT:
+                    serviceScope.insert(action);
+                    break;
+                case ENTRY_TYPE_UPDATE:
+                    serviceScope.update(action);
+                    break;
+                default:
+                    throw new TiesServiceScopeException("Unknown EntryType " + entry.getHeader().getEntryType());
+                }
+
+            } catch (TiesServiceScopeException e) {
+                LOG.error("Error handling entry {}", entry, e);
+                results.add(new ModificationErrorResult() {
+
+                    @Override
+                    public Throwable getError() {
+                        return e;
+                    }
+
+                    @Override
+                    public byte[] getEntryHeaderHash() {
+                        return entry.getHeader().getHeaderHash();
+                    }
+
+                });
+                continue;
             }
+            results.add(new ModificationSuccessResult() {
 
+                @Override
+                public byte[] getEntryHeaderHash() {
+                    return entry.getHeader().getHeaderHash();
+                }
+
+            });
         }
 
-        return VOID;
+        return new ModificationResponse() {
+
+            @Override
+            public BigInteger getMessageId() {
+                return request.getMessageId();
+            }
+
+            @Override
+            public Iterable<ModificationResult> getResults() {
+                return results;
+            }
+
+        };
     }
 
     private static class TiesServiceScopeActionEntry implements TiesServiceScopeAction {

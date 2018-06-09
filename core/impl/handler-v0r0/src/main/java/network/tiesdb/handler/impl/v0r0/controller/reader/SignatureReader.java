@@ -16,9 +16,9 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller.request;
+package network.tiesdb.handler.impl.v0r0.controller.reader;
 
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.end;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.end;
 
 import java.util.function.Consumer;
 
@@ -31,11 +31,10 @@ import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 
-import network.tiesdb.handler.impl.v0r0.controller.Controller;
 import network.tiesdb.handler.impl.v0r0.util.FormatUtil;
 import one.utopic.sparse.ebml.format.BytesFormat;
 
-public class SignatureController implements Controller<SignatureController.Signature> {
+public class SignatureReader implements Reader<SignatureReader.Signature> {
 
     public static class Signature {
 
@@ -57,10 +56,10 @@ public class SignatureController implements Controller<SignatureController.Signa
 
     }
 
-    private static final Logger LOG = LoggerFactory.getLogger(SignatureController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SignatureReader.class);
     private final Consumer<Byte> hashListener;
 
-    public SignatureController(Consumer<Byte> hashListener) {
+    public SignatureReader(Consumer<Byte> hashListener) {
         this.hashListener = hashListener;
     }
 

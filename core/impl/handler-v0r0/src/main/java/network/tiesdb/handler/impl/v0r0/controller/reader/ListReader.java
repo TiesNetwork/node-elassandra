@@ -16,9 +16,9 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller.request;
+package network.tiesdb.handler.impl.v0r0.controller.reader;
 
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.acceptEach;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -28,15 +28,13 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.ebml.TiesDBType;
 
-import network.tiesdb.handler.impl.v0r0.controller.Controller;
+public class ListReader<T> implements Reader<Consumer<T>> {
 
-public class ListController<T> implements Controller<Consumer<T>> {
-
-    private final Controller<T> elementController;
+    private final Reader<T> elementController;
     private final TiesDBType elementType;
     private final Supplier<T> supplier;
 
-    public ListController(TiesDBType elementType, Supplier<T> supplier, Controller<T> elementController) {
+    public ListReader(TiesDBType elementType, Supplier<T> supplier, Reader<T> elementController) {
         this.elementType = elementType;
         this.supplier = supplier;
         this.elementController = elementController;

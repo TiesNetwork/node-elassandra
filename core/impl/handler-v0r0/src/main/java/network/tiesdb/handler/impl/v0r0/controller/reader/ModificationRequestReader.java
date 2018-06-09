@@ -16,10 +16,10 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller.request;
+package network.tiesdb.handler.impl.v0r0.controller.reader;
 
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.end;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.end;
 
 import java.math.BigInteger;
 import java.util.LinkedList;
@@ -33,16 +33,14 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.ebml.TiesDBRequestConsistency;
 import com.tiesdb.protocol.v0r0.ebml.format.TiesDBRequestConsistencyFormat;
 
-import network.tiesdb.handler.impl.v0r0.controller.Controller;
-import network.tiesdb.handler.impl.v0r0.controller.request.EntryController.Entry;
-import network.tiesdb.service.scope.api.TiesServiceScopeException;
+import network.tiesdb.handler.impl.v0r0.controller.reader.EntryReader.Entry;
 import one.utopic.sparse.ebml.format.BigIntegerFormat;
 
-public class ModificationRequestController implements Controller<ModificationRequestController.ModificationRequest> {
+public class ModificationRequestReader implements Reader<ModificationRequestReader.ModificationRequest> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ModificationRequestController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ModificationRequestReader.class);
 
-    public static class ModificationRequest implements Request {
+    public static class ModificationRequest implements Reader.Request {
 
         private BigInteger messageId;
         private TiesDBRequestConsistency consistency;
@@ -54,7 +52,7 @@ public class ModificationRequestController implements Controller<ModificationReq
         }
 
         @Override
-        public <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+        public <T> T accept(Visitor<T> v) throws TiesDBProtocolException {
             return v.on(this);
         }
 
@@ -73,10 +71,10 @@ public class ModificationRequestController implements Controller<ModificationReq
 
     }
 
-    private final EntryController entryController;
+    private final EntryReader entryReader;
 
-    public ModificationRequestController() {
-        this.entryController = new EntryController();
+    public ModificationRequestReader() {
+        this.entryReader = new EntryReader();
     }
 
     public boolean acceptModificationRequest(Conversation session, Event e, ModificationRequest r) throws TiesDBProtocolException {
@@ -93,7 +91,7 @@ public class ModificationRequestController implements Controller<ModificationReq
             return true;
         case ENTRY:
             Entry entry = new Entry();
-            boolean result = entryController.accept(session, e, entry);
+            boolean result = entryReader.accept(session, e, entry);
             if (result) {
                 r.entries.add(entry);
             }

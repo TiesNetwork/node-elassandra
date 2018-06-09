@@ -19,7 +19,6 @@
 package network.tiesdb.handler.impl.v0r0;
 
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,13 +40,12 @@ import network.tiesdb.api.TiesVersion;
 import network.tiesdb.context.api.TiesHandlerConfig;
 import network.tiesdb.exception.TiesException;
 import network.tiesdb.handler.api.TiesHandler;
-import network.tiesdb.handler.impl.v0r0.controller.request.Request;
-import network.tiesdb.handler.impl.v0r0.controller.request.RequestController;
-import network.tiesdb.handler.impl.v0r0.processor.RequestProcessor;
+import network.tiesdb.handler.impl.v0r0.controller.RequestController;
+import network.tiesdb.handler.impl.v0r0.controller.reader.RequestReader;
+import network.tiesdb.handler.impl.v0r0.controller.writer.ResponseWriter;
 import network.tiesdb.handler.impl.v0r0.util.StreamInput;
 import network.tiesdb.handler.impl.v0r0.util.StreamOutput;
 import network.tiesdb.service.api.TiesService;
-import network.tiesdb.service.scope.api.TiesServiceScopeException;
 import network.tiesdb.transport.api.TiesRequest;
 import network.tiesdb.transport.api.TiesResponse;
 import one.utopic.sparse.ebml.format.UTF8StringFormat;
@@ -71,8 +69,6 @@ public class TiesHandlerImpl implements TiesHandler, TiesDBProtocolHandler<TiesD
 
     private final RequestController requestController;
 
-    private final RequestProcessor requestProcessor;
-
     public TiesHandlerImpl(TiesService service, TiesHandlerConfigImpl config) {
         if (null == config) {
             throw new NullPointerException("The config should not be null");
@@ -88,9 +84,7 @@ public class TiesHandlerImpl implements TiesHandler, TiesDBProtocolHandler<TiesD
             throw new RuntimeException("No TiesDBProtocols found");
         }
 
-        this.requestController = new RequestController();
-
-        this.requestProcessor = new RequestProcessor(service);
+        this.requestController = new RequestController(service, new RequestReader(), new ResponseWriter());
     };
 
     @Override
@@ -123,31 +117,8 @@ public class TiesHandlerImpl implements TiesHandler, TiesDBProtocolHandler<TiesD
 
     @Override
     public void handle(Conversation session) throws TiesDBException {
-        AtomicReference<Request> requestRef = new AtomicReference<>();
         try {
-            Event event;
-            while (null != requestController && null != (event = session.get())) {
-                LOG.debug("RootBeginEvent: {}", event);
-                if (EventState.BEGIN.equals(event.getState())) {
-                    // System.out.println("\t BEGINEvent: " + event);
-                    if (requestController.accept(session, event, requestRef)) {
-                        try {
-                            requestProcessor.processRequest(requestRef.get());
-                        } catch (TiesServiceScopeException e) {
-                            throw new TiesDBException("Request failed", e);
-                        }
-                        continue;
-                    }
-                    LOG.warn("Skipped {}", event);
-                    session.skip();
-                    Event endEvent = session.get();
-                    LOG.debug("RootEndEvent: {}", endEvent);
-                    if (null != endEvent && EventState.END.equals(endEvent.getState()) && endEvent.getType().equals(event.getType())) {
-                        continue;
-                    }
-                }
-                throw new TiesDBProtocolException("Illegal root event: " + event);
-            }
+            requestController.handle(session);
         } catch (Exception e) {
             LOG.debug("Handle exception", e);
             session.accept(new Event(TiesDBType.ERROR, EventState.BEGIN));

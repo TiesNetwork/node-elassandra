@@ -16,10 +16,10 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller.request;
+package network.tiesdb.handler.impl.v0r0.controller.reader;
 
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.checkEntryFieldsHash;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.checkEntryFieldsHash;
 
 import java.util.HashMap;
 
@@ -28,11 +28,10 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.ebml.TiesDBType;
 
-import network.tiesdb.handler.impl.v0r0.controller.Controller;
-import network.tiesdb.handler.impl.v0r0.controller.request.EntryHeaderController.EntryHeader;
-import network.tiesdb.handler.impl.v0r0.controller.request.FieldController.Field;
+import network.tiesdb.handler.impl.v0r0.controller.reader.EntryHeaderReader.EntryHeader;
+import network.tiesdb.handler.impl.v0r0.controller.reader.FieldReader.Field;
 
-public class EntryController implements Controller<EntryController.Entry> {
+public class EntryReader implements Reader<EntryReader.Entry> {
 
     public static class Entry {
 
@@ -54,19 +53,19 @@ public class EntryController implements Controller<EntryController.Entry> {
 
     }
 
-    private final EntryHeaderController entryHeaderController;
-    private final ListController<Field> fieldListController;
+    private final EntryHeaderReader entryHeaderReader;
+    private final ListReader<Field> fieldListController;
 
-    public EntryController() {
-        this.entryHeaderController = new EntryHeaderController();
-        this.fieldListController = new ListController<>(TiesDBType.FIELD, () -> new Field(), new FieldController());
+    public EntryReader() {
+        this.entryHeaderReader = new EntryHeaderReader();
+        this.fieldListController = new ListReader<>(TiesDBType.FIELD, () -> new Field(), new FieldReader());
     }
 
     private boolean acceptEntry(Conversation session, Event e, Entry entry) throws TiesDBProtocolException {
         switch (e.getType()) {
         case ENTRY_HEADER:
             EntryHeader header = new EntryHeader();
-            boolean result = entryHeaderController.accept(session, e, header);
+            boolean result = entryHeaderReader.accept(session, e, header);
             if (result) {
                 if (null != entry.header) {
                     throw new TiesDBProtocolException("Multiple headers detected! Should be only one header in each entry.");

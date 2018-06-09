@@ -22,7 +22,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import network.tiesdb.exception.TiesException;
 import network.tiesdb.transport.api.TiesTransport;
@@ -34,13 +33,13 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketFrameHandler.class);
 
-	private final TiesTransport transport;
-    
-    public WebSocketFrameHandler(TiesTransport transport){
-		if (null == transport) {
-			throw new NullPointerException("The transport should not be null");
-		}
-		this.transport = transport;
+    private final TiesTransport transport;
+
+    public WebSocketFrameHandler(TiesTransport transport) {
+        if (null == transport) {
+            throw new NullPointerException("The transport should not be null");
+        }
+        this.transport = transport;
     }
 
     @Override
@@ -57,11 +56,13 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
                 logger.error("Channel error: {}", e.getMessage(), e);
                 ctx.channel().writeAndFlush(new CloseWebSocketFrame(1008, e.getMessage()));
             }
-            //ctx.channel().writeAndFlush(new TextWebSocketFrame(request.toUpperCase(Locale.US)));
+            // ctx.channel().writeAndFlush(new
+            // TextWebSocketFrame(request.toUpperCase(Locale.US)));
         } else {
             logger.error("Unsupported frame type: {}", frame.getClass().getName());
             ctx.channel().writeAndFlush(new CloseWebSocketFrame(1003, "Only Binary frames are supported"));
-            //throw new UnsupportedOperationException("unsupported frame type: " + frame.getClass().getName());
+            // throw new UnsupportedOperationException("unsupported frame type: " +
+            // frame.getClass().getName());
         }
     }
 }

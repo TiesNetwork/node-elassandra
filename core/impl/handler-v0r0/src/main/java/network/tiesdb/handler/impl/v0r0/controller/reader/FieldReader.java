@@ -16,11 +16,11 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.handler.impl.v0r0.controller.request;
+package network.tiesdb.handler.impl.v0r0.controller.reader;
 
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.DEFAULT_DIGEST_ALG;
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.acceptEach;
-import static network.tiesdb.handler.impl.v0r0.controller.request.RequestUtil.end;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.DEFAULT_DIGEST_ALG;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.acceptEach;
+import static network.tiesdb.handler.impl.v0r0.controller.reader.ReaderUtil.end;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,15 +38,14 @@ import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 
-import network.tiesdb.handler.impl.v0r0.controller.Controller;
 import network.tiesdb.handler.impl.v0r0.util.FormatUtil;
 import one.utopic.sparse.ebml.format.ASCIIStringFormat;
 import one.utopic.sparse.ebml.format.BytesFormat;
 import one.utopic.sparse.ebml.format.UTF8StringFormat;
 
-public class FieldController implements Controller<FieldController.Field> {
+public class FieldReader implements Reader<FieldReader.Field> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(FieldController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FieldReader.class);
 
     public static class Field {
 
@@ -87,7 +86,7 @@ public class FieldController implements Controller<FieldController.Field> {
     private final Digest fieldDigest;
     private final Consumer<Byte> fieldHashListener;
 
-    public FieldController() {
+    public FieldReader() {
         this.fieldDigest = DigestManager.getDigest(DEFAULT_DIGEST_ALG);
         this.fieldHashListener = fieldDigest::update;
     }
