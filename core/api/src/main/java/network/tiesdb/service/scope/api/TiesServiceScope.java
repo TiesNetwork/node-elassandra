@@ -19,7 +19,6 @@
 package network.tiesdb.service.scope.api;
 
 import java.io.Closeable;
-import java.util.Map;
 
 import network.tiesdb.api.TiesVersion;
 

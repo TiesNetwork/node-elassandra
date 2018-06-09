@@ -25,7 +25,6 @@ import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 
 import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationResponseWriter.ModificationResult;
-import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationResponseWriter.ModificationResult.Visitor;
 
 import static com.tiesdb.protocol.v0r0.ebml.TiesDBType.*;
 

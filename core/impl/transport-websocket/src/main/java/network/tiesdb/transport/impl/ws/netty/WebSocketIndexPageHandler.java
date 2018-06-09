@@ -41,9 +41,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERR
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
-import java.io.File;
 import java.io.InputStream;
-import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 
