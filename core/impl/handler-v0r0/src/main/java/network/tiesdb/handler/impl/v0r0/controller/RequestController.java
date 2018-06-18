@@ -421,7 +421,7 @@ public class RequestController implements Request.Visitor<Response> {
 
                             @Override
                             public String getName() {
-                                return filter.getOperator();
+                                return filter.getName();
                             }
 
                             @Override
