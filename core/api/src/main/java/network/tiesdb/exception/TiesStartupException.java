@@ -21,28 +21,29 @@ package network.tiesdb.exception;
 /**
  * Exception class for TiesDB initialization logic.
  * 
- * <P>Exception thrown during startup process.
+ * <P>
+ * Exception thrown during startup process.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public class TiesStartupException extends TiesException {
 
-	private static final long serialVersionUID = -2119062737416144376L;
+    private static final long serialVersionUID = -2119062737416144376L;
 
-	private final Integer exitCode;
+    private final Integer exitCode;
 
-	public TiesStartupException(Integer exitCode, String message, Throwable cause) {
-		super(message, cause);
-		this.exitCode = exitCode;
-	}
+    public TiesStartupException(Integer exitCode, String message, Throwable cause) {
+        super(message, cause);
+        this.exitCode = exitCode;
+    }
 
-	public TiesStartupException(Integer exitCode, String message) {
-		super(message);
-		this.exitCode = exitCode;
-	}
+    public TiesStartupException(Integer exitCode, String message) {
+        super(message);
+        this.exitCode = exitCode;
+    }
 
-	public Integer getExitCode() {
-		return exitCode;
-	}
+    public Integer getExitCode() {
+        return exitCode;
+    }
 
 }

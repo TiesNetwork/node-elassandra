@@ -21,21 +21,22 @@ package network.tiesdb.exception;
 /**
  * Exception class for TiesDB configuration logic.
  * 
- * <P>Exception thrown by context factories during configuration, or by contexts 
- * if configuration inconsistency found.
+ * <P>
+ * Exception thrown by context factories during configuration, or by contexts if
+ * configuration inconsistency found.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public class TiesConfigurationException extends TiesException {
 
-	private static final long serialVersionUID = 6742891812521575170L;
+    private static final long serialVersionUID = 6742891812521575170L;
 
-	public TiesConfigurationException(String message, Throwable cause) {
-		super(message, cause);
-	}
+    public TiesConfigurationException(String message, Throwable cause) {
+        super(message, cause);
+    }
 
-	public TiesConfigurationException(String message) {
-		super(message);
-	}
+    public TiesConfigurationException(String message) {
+        super(message);
+    }
 
 }

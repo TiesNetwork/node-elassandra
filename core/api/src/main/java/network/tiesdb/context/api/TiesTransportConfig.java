@@ -23,18 +23,19 @@ import network.tiesdb.transport.api.TiesTransportFactory;
 /**
  * TiesDB transport configuration API.
  * 
- * <P>Defines common configuration of TiesDB transport.
+ * <P>
+ * Defines common configuration of TiesDB transport.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesTransportConfig {
 
-	TiesTransportFactory getTiesTransportFactory();
-	
-	TiesHandlerConfig getHandlerConfig();
+    TiesTransportFactory getTiesTransportFactory();
 
-	Integer getServicePort();
+    TiesHandlerConfig getHandlerConfig();
 
-	String getServiceAddress();
+    Integer getServicePort();
+
+    String getServiceAddress();
 
 }

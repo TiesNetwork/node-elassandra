@@ -23,20 +23,21 @@ import network.tiesdb.context.api.annotation.util.TiesConfigElementHelper;
 /**
  * Helper class to manage TiesDB messages.
  * 
- * <P>Contains utility methods for TiesDB message generation.
+ * <P>
+ * Contains utility methods for TiesDB message generation.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public final class MessageHelper {
 
-	public static String notFullyCompatible(Class<?> c1, Class<?> c2) {
-		String binding1 = TiesConfigElementHelper.getFor(c1);
-		String binding2 = TiesConfigElementHelper.getFor(c2);
-		return new StringBuilder()//
-				.append(null != binding1 ? binding1 : c1.getName())//
-				.append(" is not fully compatible with ")//
-				.append(null != binding2 ? binding2 : c2.getName())//
-				.toString();
-	}
+    public static String notFullyCompatible(Class<?> c1, Class<?> c2) {
+        String binding1 = TiesConfigElementHelper.getFor(c1);
+        String binding2 = TiesConfigElementHelper.getFor(c2);
+        return new StringBuilder()//
+                .append(null != binding1 ? binding1 : c1.getName())//
+                .append(" is not fully compatible with ")//
+                .append(null != binding2 ? binding2 : c2.getName())//
+                .toString();
+    }
 
 }

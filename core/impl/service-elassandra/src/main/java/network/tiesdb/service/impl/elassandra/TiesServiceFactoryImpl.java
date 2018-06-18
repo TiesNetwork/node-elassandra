@@ -29,9 +29,9 @@ import network.tiesdb.service.api.TiesServiceFactory;
  */
 public class TiesServiceFactoryImpl implements TiesServiceFactory {
 
-	@Override
-	public TiesServiceDaemonImpl createServiceDaemon(String name, TiesServiceConfig config) throws TiesConfigurationException {
-		return new TiesServiceDaemonImpl(name, config);
-	}
+    @Override
+    public TiesServiceDaemonImpl createServiceDaemon(String name, TiesServiceConfig config) throws TiesConfigurationException {
+        return new TiesServiceDaemonImpl(name, config);
+    }
 
 }

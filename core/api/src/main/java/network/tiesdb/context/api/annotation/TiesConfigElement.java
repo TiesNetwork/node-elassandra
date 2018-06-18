@@ -27,14 +27,15 @@ import java.lang.annotation.Target;
 /**
  * TiesDB configuration element annotation.
  * 
- * <P>Marks class as a part of TiesDB configuration with given name.
- *  
+ * <P>
+ * Marks class as a part of TiesDB configuration with given name.
+ * 
  * @author Anton Filatov (filatov@ties.network)
  */
 @Retention(RUNTIME)
 @Target(TYPE)
 public @interface TiesConfigElement {
-	
-	String[] value();
+
+    String[] value();
 
 }

@@ -23,12 +23,13 @@ import java.io.OutputStream;
 /**
  * TiesDB response API.
  * 
- * <P>Defines common response functions.
- *  
+ * <P>
+ * Defines common response functions.
+ * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesResponse {
 
-	OutputStream getOutputStream();
+    OutputStream getOutputStream();
 
 }

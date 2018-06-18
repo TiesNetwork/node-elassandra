@@ -44,90 +44,89 @@ import network.tiesdb.transport.impl.ws.TiesTransportConfigImpl;
 
 public class WebSocketServerInitializer extends ChannelInitializer<SocketChannel> {
 
-	private static final Logger logger = LoggerFactory.getLogger(WebSocketServerInitializer.class);
+    private static final Logger logger = LoggerFactory.getLogger(WebSocketServerInitializer.class);
 
-	private static final String WEBSOCKET_PATH = "/websocket";
+    private static final String WEBSOCKET_PATH = "/websocket";
 
-	private static class ConfigurableIdleStateHandler extends IdleStateHandler {
-		private ConfigurableIdleStateHandler(long readerIdleTime, long writerIdleTime, long allIdleTime,
-				TimeUnit unit) {
-			super(readerIdleTime, writerIdleTime, allIdleTime, nullsafe(unit));
-		}
+    private static class ConfigurableIdleStateHandler extends IdleStateHandler {
+        private ConfigurableIdleStateHandler(long readerIdleTime, long writerIdleTime, long allIdleTime, TimeUnit unit) {
+            super(readerIdleTime, writerIdleTime, allIdleTime, nullsafe(unit));
+        }
 
-		private ConfigurableIdleStateHandler(TiesTransportConfigImpl config) {
-			this(nullsafe(config).getIdleReaderTime(), nullsafe(config).getIdleWriterTime(),
-					nullsafe(config).getIdleTime(), TimeUnit.valueOf(nullsafe(config).getIdleTimeUnit()));
-		}
+        private ConfigurableIdleStateHandler(TiesTransportConfigImpl config) {
+            this(nullsafe(config).getIdleReaderTime(), nullsafe(config).getIdleWriterTime(), nullsafe(config).getIdleTime(),
+                    TimeUnit.valueOf(nullsafe(config).getIdleTimeUnit()));
+        }
 
-		private ConfigurableIdleStateHandler(TiesTransportConfig config) {
-			this((TiesTransportConfigImpl) config);
-		}
+        private ConfigurableIdleStateHandler(TiesTransportConfig config) {
+            this((TiesTransportConfigImpl) config);
+        }
 
-		@Override
-		protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) throws Exception {
-			switch (evt.state()) {
-			case ALL_IDLE:
-			case WRITER_IDLE:
-				ctx.channel().write(new PingWebSocketFrame());
-				break;
-			case READER_IDLE:
-			default:
-				ctx.close();
-			}
-			super.channelIdle(ctx, evt);
-		}
-	}
+        @Override
+        protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) throws Exception {
+            switch (evt.state()) {
+            case ALL_IDLE:
+            case WRITER_IDLE:
+                ctx.channel().write(new PingWebSocketFrame());
+                break;
+            case READER_IDLE:
+            default:
+                ctx.close();
+            }
+            super.channelIdle(ctx, evt);
+        }
+    }
 
-	private final SslContext sslCtx;
+    private final SslContext sslCtx;
 
-	private final TiesTransport transport;
+    private final TiesTransport transport;
 
-	public WebSocketServerInitializer(TiesTransport transport, SslContext sslCtx) {
-		this.transport = transport;
-		this.sslCtx = sslCtx;
-	}
+    public WebSocketServerInitializer(TiesTransport transport, SslContext sslCtx) {
+        this.transport = transport;
+        this.sslCtx = sslCtx;
+    }
 
-	@Override
-	public void initChannel(SocketChannel ch) throws Exception {
-		config1stStage(ch);
+    @Override
+    public void initChannel(SocketChannel ch) throws Exception {
+        config1stStage(ch);
 
-		ChannelPipeline pipeline = ch.pipeline();
-		if (null != sslCtx) {
-			pipeline.addLast(sslCtx.newHandler(ch.alloc()));
-		}
-		pipeline.addLast(new HttpServerCodec());
-		pipeline.addLast(new HttpObjectAggregator(65536));
-		pipeline.addLast(new WebSocketServerProtocolHandler(WEBSOCKET_PATH, null, true));
-		pipeline.addLast(new WebSocketIndexPageHandler(WEBSOCKET_PATH));
-		pipeline.addLast(new WebSocketFrameHandler(transport));
+        ChannelPipeline pipeline = ch.pipeline();
+        if (null != sslCtx) {
+            pipeline.addLast(sslCtx.newHandler(ch.alloc()));
+        }
+        pipeline.addLast(new HttpServerCodec());
+        pipeline.addLast(new HttpObjectAggregator(65536));
+        pipeline.addLast(new WebSocketServerProtocolHandler(WEBSOCKET_PATH, null, true));
+        pipeline.addLast(new WebSocketIndexPageHandler(WEBSOCKET_PATH));
+        pipeline.addLast(new WebSocketFrameHandler(transport));
 
-		config2ndStage(ch);
-	}
+        config2ndStage(ch);
+    }
 
-	protected void config1stStage(SocketChannel ch) {
-		SocketChannelConfig config = ch.config();
-		config.setTcpNoDelay(true);
-		config.setKeepAlive(true);
+    protected void config1stStage(SocketChannel ch) {
+        SocketChannelConfig config = ch.config();
+        config.setTcpNoDelay(true);
+        config.setKeepAlive(true);
 
-		configToS(ch);
-	}
+        configToS(ch);
+    }
 
-	protected void config2ndStage(SocketChannel ch) {
-		ChannelPipeline pipeline = ch.pipeline();
-		pipeline.addLast(new ConfigurableIdleStateHandler(nullsafe(transport.getTiesTransportConfig())));
-	}
+    protected void config2ndStage(SocketChannel ch) {
+        ChannelPipeline pipeline = ch.pipeline();
+        pipeline.addLast(new ConfigurableIdleStateHandler(nullsafe(transport.getTiesTransportConfig())));
+    }
 
-	protected void configToS(SocketChannel ch) {
-		TiesTransportConfig config = nullsafe(transport.getTiesTransportConfig());
-		if (config instanceof TiesTransportConfigImpl) {
-			TiesTransportConfigImpl extConfig = (TiesTransportConfigImpl) config;
-			Integer tos = extConfig.getTypeOfService();
-			if (null != tos) {
-				ch.config().setTrafficClass(tos);
-			}
-		} else {
-			logger.warn(MessageHelper.notFullyCompatible(config.getClass(), TiesTransportConfigImpl.class),
-					"Using default TypeOfService for websocket");
-		}
-	}
+    protected void configToS(SocketChannel ch) {
+        TiesTransportConfig config = nullsafe(transport.getTiesTransportConfig());
+        if (config instanceof TiesTransportConfigImpl) {
+            TiesTransportConfigImpl extConfig = (TiesTransportConfigImpl) config;
+            Integer tos = extConfig.getTypeOfService();
+            if (null != tos) {
+                ch.config().setTrafficClass(tos);
+            }
+        } else {
+            logger.warn(MessageHelper.notFullyCompatible(config.getClass(), TiesTransportConfigImpl.class),
+                    "Using default TypeOfService for websocket");
+        }
+    }
 }

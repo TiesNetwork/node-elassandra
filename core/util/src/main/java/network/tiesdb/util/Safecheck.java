@@ -21,24 +21,25 @@ package network.tiesdb.util;
 /**
  * TiesDB utility checks.
  * 
- * <P>Defines utilisy functions for basic sanity checks.
+ * <P>
+ * Defines utilisy functions for basic sanity checks.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public final class Safecheck {
 
-	public static <T> T nullsafe(T input) {
-		return nullsafe(input, "The input should not be null");
-	}
+    public static <T> T nullsafe(T input) {
+        return nullsafe(input, "The input should not be null");
+    }
 
-	public static <T> T nullsafe(T input, String message) {
-		if (null == input) {
-			throw new NullPointerException(message);
-		}
-		return input;
-	}
+    public static <T> T nullsafe(T input, String message) {
+        if (null == input) {
+            throw new NullPointerException(message);
+        }
+        return input;
+    }
 
-	public static <T, R extends T> T nullreplace(T input, R replace) {
-		return null != input ? input : replace;
-	}
+    public static <T, R extends T> T nullreplace(T input, R replace) {
+        return null != input ? input : replace;
+    }
 }

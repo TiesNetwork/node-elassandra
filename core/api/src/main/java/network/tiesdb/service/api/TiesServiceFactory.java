@@ -24,12 +24,13 @@ import network.tiesdb.exception.TiesConfigurationException;
 /**
  * TiesDB service factory.
  * 
- * <P>Factory of TiesDB services.
+ * <P>
+ * Factory of TiesDB services.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesServiceFactory {
 
-	TiesServiceDaemon createServiceDaemon(String name, TiesServiceConfig config) throws TiesConfigurationException;
+    TiesServiceDaemon createServiceDaemon(String name, TiesServiceConfig config) throws TiesConfigurationException;
 
 }

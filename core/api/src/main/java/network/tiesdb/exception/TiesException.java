@@ -21,20 +21,21 @@ package network.tiesdb.exception;
 /**
  * Exception class for TiesDB system.
  * 
- * <P>Parent class for any checked exceptions regarding TiesDB logic.
+ * <P>
+ * Parent class for any checked exceptions regarding TiesDB logic.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public class TiesException extends Exception {
 
-	private static final long serialVersionUID = -8643212298857531130L;
+    private static final long serialVersionUID = -8643212298857531130L;
 
-	public TiesException(String message, Throwable cause) {
-		super(message, cause);
-	}
+    public TiesException(String message, Throwable cause) {
+        super(message, cause);
+    }
 
-	public TiesException(String message) {
-		super(message);
-	}
+    public TiesException(String message) {
+        super(message);
+    }
 
 }

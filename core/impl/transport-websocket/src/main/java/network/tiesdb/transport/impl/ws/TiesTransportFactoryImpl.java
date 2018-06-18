@@ -31,10 +31,9 @@ import network.tiesdb.transport.api.TiesTransportFactory;
  */
 public class TiesTransportFactoryImpl implements TiesTransportFactory {
 
-	@Override
-	public TiesTransportDaemon createTransportDaemon(TiesService service, TiesTransportConfig config)
-			throws TiesConfigurationException {
-		return new TiesTransportDaemonImpl(service, config);
-	}
+    @Override
+    public TiesTransportDaemon createTransportDaemon(TiesService service, TiesTransportConfig config) throws TiesConfigurationException {
+        return new TiesTransportDaemonImpl(service, config);
+    }
 
 }

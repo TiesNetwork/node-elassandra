@@ -31,23 +31,23 @@ import network.tiesdb.transport.api.TiesRequest;
  */
 public class WebSocketRequestHandler implements TiesRequest, AutoCloseable {
 
-	private final InputStream is;
+    private final InputStream is;
 
-	public WebSocketRequestHandler(WebSocketFrame frame) {
-		if (null == frame) {
-			throw new NullPointerException("The frame should not be null");
-		}
-		this.is = new ByteBufInputStream(frame.content());
-	}
+    public WebSocketRequestHandler(WebSocketFrame frame) {
+        if (null == frame) {
+            throw new NullPointerException("The frame should not be null");
+        }
+        this.is = new ByteBufInputStream(frame.content());
+    }
 
-	@Override
-	public InputStream getInputStream() {
-		return is;
-	}
+    @Override
+    public InputStream getInputStream() {
+        return is;
+    }
 
-	@Override
-	public void close() throws Exception {
-		is.close();
-	}
+    @Override
+    public void close() throws Exception {
+        is.close();
+    }
 
 }

@@ -28,20 +28,21 @@ import network.tiesdb.transport.api.TiesTransport;
 /**
  * TiesDB service API.
  * 
- * <P>Defines common service functions.
+ * <P>
+ * Defines common service functions.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesService {
 
-	TiesServiceDaemon getDaemon();
-	
-	List<TiesTransport> getTransports();
+    TiesServiceDaemon getDaemon();
 
-	TiesServiceConfig getTiesServiceConfig();
+    List<TiesTransport> getTransports();
 
-	TiesVersion getVersion();
-	
-	TiesServiceScope newServiceScope();
+    TiesServiceConfig getTiesServiceConfig();
+
+    TiesVersion getVersion();
+
+    TiesServiceScope newServiceScope();
 
 }

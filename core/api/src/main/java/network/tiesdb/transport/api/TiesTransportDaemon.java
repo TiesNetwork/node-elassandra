@@ -24,17 +24,18 @@ import network.tiesdb.exception.TiesException;
 /**
  * TiesDB transport daemon API.
  * 
- * <P>Defines common daemon controls of TiesDB transport.
+ * <P>
+ * Defines common daemon controls of TiesDB transport.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesTransportDaemon {
 
-	void start() throws TiesException;
+    void start() throws TiesException;
 
-	void stop() throws TiesException;
+    void stop() throws TiesException;
 
-	void init() throws TiesException;
-	
-	TiesTransport getTiesTransport() throws TiesConfigurationException;
+    void init() throws TiesException;
+
+    TiesTransport getTiesTransport() throws TiesConfigurationException;
 }

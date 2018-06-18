@@ -33,42 +33,42 @@ import network.tiesdb.service.api.TiesServiceFactory;
 @TiesConfigElement({ TiesServiceConfigImpl.BINDING, TiesServiceConfigImpl.SHORT_BINDING })
 public class TiesServiceConfigImpl implements TiesServiceConfig {
 
-	static final String BINDING = "network.tiesdb.Service";
-	static final String SHORT_BINDING = "TiesService";
+    static final String BINDING = "network.tiesdb.Service";
+    static final String SHORT_BINDING = "TiesService";
 
-	private boolean serviceStopCritical = true;
+    private boolean serviceStopCritical = true;
 
-	private List<TiesTransportConfig> transports;
+    private List<TiesTransportConfig> transports;
 
-	public TiesServiceConfigImpl() {
-		// NOP Is not empty config values
-	}
+    public TiesServiceConfigImpl() {
+        // NOP Is not empty config values
+    }
 
-	public TiesServiceConfigImpl(String value) {
-		// NOP If this constructor is called then config values is empty and we
-		// should use default
-	}
+    public TiesServiceConfigImpl(String value) {
+        // NOP If this constructor is called then config values is empty and we
+        // should use default
+    }
 
-	@Override
-	public TiesServiceFactory getTiesServiceFactory() {
-		return new TiesServiceFactoryImpl();
-	}
+    @Override
+    public TiesServiceFactory getTiesServiceFactory() {
+        return new TiesServiceFactoryImpl();
+    }
 
-	@Override
-	public Boolean isServiceStopCritical() {
-		return serviceStopCritical;
-	}
+    @Override
+    public Boolean isServiceStopCritical() {
+        return serviceStopCritical;
+    }
 
-	public void setServiceStopCritical(boolean serviceStopCritical) {
-		this.serviceStopCritical = serviceStopCritical;
-	}
+    public void setServiceStopCritical(boolean serviceStopCritical) {
+        this.serviceStopCritical = serviceStopCritical;
+    }
 
-	@Override
-	public List<TiesTransportConfig> getTransportConfigs() {
-		return transports;
-	}
+    @Override
+    public List<TiesTransportConfig> getTransportConfigs() {
+        return transports;
+    }
 
-	public void setTransports(List<TiesTransportConfig> transports) {
-		this.transports = transports;
-	}
+    public void setTransports(List<TiesTransportConfig> transports) {
+        this.transports = transports;
+    }
 }

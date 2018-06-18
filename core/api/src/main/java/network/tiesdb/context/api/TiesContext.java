@@ -25,38 +25,38 @@ import java.util.ServiceLoader;
 /**
  * Context of TiesDB service.
  * 
- * <P>Contains configuration of TiesDB service and service runtime state.
+ * <P>
+ * Contains configuration of TiesDB service and service runtime state.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-//TODO change to map and allow usage of multiple contexts mappings
+// TODO change to map and allow usage of multiple contexts mappings
 public class TiesContext {
 
-	private Map<String, TiesServiceConfig> config;
+    private Map<String, TiesServiceConfig> config;
 
-	public Map<String, TiesServiceConfig> getConfig() {
-		return config;
-	}
+    public Map<String, TiesServiceConfig> getConfig() {
+        return config;
+    }
 
-	public void setConfig(Map<String, TiesServiceConfig> configs) {
-		this.config = configs;
-	}
+    public void setConfig(Map<String, TiesServiceConfig> configs) {
+        this.config = configs;
+    }
 
-	/**
-	 * Searches a suitable {@link TiesContextFactory}
-	 * 
-	 * @param contextTypeName
-	 *            - name of the context class
-	 * @return {@link TiesContextFactory} instance or null
-	 */
-	public static TiesContextFactory getTiesContextFactory(String contextTypeName) {
-		Iterator<TiesContextFactory> services = ServiceLoader.load(TiesContextFactory.class).iterator();
-		while (services.hasNext()) {
-			TiesContextFactory tiesContextService = services.next();
-			if (tiesContextService.matchesContextType(contextTypeName)) {
-				return tiesContextService;
-			}
-		}
-		return null;
-	}
+    /**
+     * Searches a suitable {@link TiesContextFactory}
+     * 
+     * @param contextTypeName - name of the context class
+     * @return {@link TiesContextFactory} instance or null
+     */
+    public static TiesContextFactory getTiesContextFactory(String contextTypeName) {
+        Iterator<TiesContextFactory> services = ServiceLoader.load(TiesContextFactory.class).iterator();
+        while (services.hasNext()) {
+            TiesContextFactory tiesContextService = services.next();
+            if (tiesContextService.matchesContextType(contextTypeName)) {
+                return tiesContextService;
+            }
+        }
+        return null;
+    }
 }

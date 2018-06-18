@@ -25,18 +25,19 @@ import network.tiesdb.handler.api.TiesHandler;
 /**
  * TiesDB transport API.
  * 
- * <P>Defines common transport functions.
- *  
+ * <P>
+ * Defines common transport functions.
+ * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesTransport {
 
-	TiesTransportDaemon getDaemon();
-	
-	TiesHandler getHandler();
+    TiesTransportDaemon getDaemon();
 
-	TiesTransportConfig getTiesTransportConfig();
+    TiesHandler getHandler();
 
-	TiesVersion getVersion();
+    TiesTransportConfig getTiesTransportConfig();
+
+    TiesVersion getVersion();
 
 }

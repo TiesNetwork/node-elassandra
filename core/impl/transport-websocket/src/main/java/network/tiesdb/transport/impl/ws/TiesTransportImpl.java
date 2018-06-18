@@ -39,53 +39,53 @@ import network.tiesdb.transport.impl.ws.netty.WebSocketServer;
  */
 public abstract class TiesTransportImpl implements TiesTransport {
 
-	private static final TiesTransportImplVersion IMPLEMENTATION_VERSION = TiesTransportImplVersion.v_0_0_1_prealpha;
+    private static final TiesTransportImplVersion IMPLEMENTATION_VERSION = TiesTransportImplVersion.v_0_0_1_prealpha;
 
-	private final TiesTransportConfig config;
-	private final WebSocketServer server;
-	private final TiesHandler handler;
+    private final TiesTransportConfig config;
+    private final WebSocketServer server;
+    private final TiesHandler handler;
 
-	public TiesTransportImpl(TiesService tiesService, TiesTransportConfig config) {
-		if (null == tiesService) {
-			throw new NullPointerException("The tiesService should not be null");
-		}
-		if (null == config) {
-			throw new NullPointerException("The config should not be null");
-		}
-		this.handler = nullsafe(nullsafe(config.getHandlerConfig()).getTiesHandlerFactory()).createHandler(tiesService);
-		this.config = config;
-		this.server = new WebSocketServer(this);
-	}
+    public TiesTransportImpl(TiesService tiesService, TiesTransportConfig config) {
+        if (null == tiesService) {
+            throw new NullPointerException("The tiesService should not be null");
+        }
+        if (null == config) {
+            throw new NullPointerException("The config should not be null");
+        }
+        this.handler = nullsafe(nullsafe(config.getHandlerConfig()).getTiesHandlerFactory()).createHandler(tiesService);
+        this.config = config;
+        this.server = new WebSocketServer(this);
+    }
 
-	@Override
-	public TiesTransportConfig getTiesTransportConfig() {
-		return config;
-	}
+    @Override
+    public TiesTransportConfig getTiesTransportConfig() {
+        return config;
+    }
 
-	protected void startInternal() throws TiesException {
-		try {
-			server.start();
-		} catch (CertificateException | SSLException | InterruptedException e) {
-			throw new TiesException("Can't start TiesDB Transport", e);
-		}
-	}
+    protected void startInternal() throws TiesException {
+        try {
+            server.start();
+        } catch (CertificateException | SSLException | InterruptedException e) {
+            throw new TiesException("Can't start TiesDB Transport", e);
+        }
+    }
 
-	protected void initInternal() throws TiesException {
-		server.init();
-	}
+    protected void initInternal() throws TiesException {
+        server.init();
+    }
 
-	protected void stopInternal() throws TiesException {
-		server.stop();
-	}
+    protected void stopInternal() throws TiesException {
+        server.stop();
+    }
 
-	@Override
-	public TiesVersion getVersion() {
-		return IMPLEMENTATION_VERSION;
-	}
+    @Override
+    public TiesVersion getVersion() {
+        return IMPLEMENTATION_VERSION;
+    }
 
-	@Override
-	public TiesHandler getHandler() {
-		return handler;
-	}
+    @Override
+    public TiesHandler getHandler() {
+        return handler;
+    }
 
 }

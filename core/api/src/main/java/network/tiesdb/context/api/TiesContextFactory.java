@@ -26,15 +26,16 @@ import network.tiesdb.exception.TiesConfigurationException;
 /**
  * TiesDB context factory.
  * 
- * <P>Factory of TiesDB contexts.
+ * <P>
+ * Factory of TiesDB contexts.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesContextFactory {
 
-	boolean matchesContextType(String contextTypeName);
+    boolean matchesContextType(String contextTypeName);
 
-	TiesContext readContext(InputStream is) throws TiesConfigurationException;
+    TiesContext readContext(InputStream is) throws TiesConfigurationException;
 
-	void writeContext(OutputStream os, TiesContext contextData) throws TiesConfigurationException;
+    void writeContext(OutputStream os, TiesContext contextData) throws TiesConfigurationException;
 }

@@ -24,19 +24,20 @@ import network.tiesdb.exception.TiesException;
 /**
  * TiesDB service daemon API.
  * 
- * <P>Defines common daemon controls of TiesDB service.
+ * <P>
+ * Defines common daemon controls of TiesDB service.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesServiceDaemon {
 
-	String getName();
+    String getName();
 
-	void start() throws TiesException;
+    void start() throws TiesException;
 
-	void stop() throws TiesException;
+    void stop() throws TiesException;
 
-	void init() throws TiesException;
+    void init() throws TiesException;
 
-	TiesService getService() throws TiesConfigurationException;
+    TiesService getService() throws TiesConfigurationException;
 }

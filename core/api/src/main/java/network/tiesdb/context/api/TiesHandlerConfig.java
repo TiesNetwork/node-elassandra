@@ -23,12 +23,13 @@ import network.tiesdb.handler.api.TiesHandlerFactory;
 /**
  * TiesDB handler configuration API.
  * 
- * <P>Defines common configuration of TiesDB handler.
+ * <P>
+ * Defines common configuration of TiesDB handler.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesHandlerConfig {
 
-	TiesHandlerFactory getTiesHandlerFactory();
+    TiesHandlerFactory getTiesHandlerFactory();
 
 }

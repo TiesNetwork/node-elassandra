@@ -32,33 +32,33 @@ import network.tiesdb.transport.api.TiesTransportDaemon;
  */
 public class TiesTransportDaemonImpl extends TiesTransportImpl implements TiesTransportDaemon {
 
-	public TiesTransportDaemonImpl(TiesService service, TiesTransportConfig config) throws TiesConfigurationException {
-		super(service, config);
-	}
+    public TiesTransportDaemonImpl(TiesService service, TiesTransportConfig config) throws TiesConfigurationException {
+        super(service, config);
+    }
 
-	@Override
-	public TiesTransport getTiesTransport() throws TiesConfigurationException {
-		return this;
-	}
+    @Override
+    public TiesTransport getTiesTransport() throws TiesConfigurationException {
+        return this;
+    }
 
-	@Override
-	public void init() throws TiesException {
-		super.initInternal();
-	}
+    @Override
+    public void init() throws TiesException {
+        super.initInternal();
+    }
 
-	@Override
-	public void start() throws TiesException {
-		super.startInternal();
-	}
+    @Override
+    public void start() throws TiesException {
+        super.startInternal();
+    }
 
-	@Override
-	public void stop() throws TiesException {
-		super.stopInternal();
-	}
+    @Override
+    public void stop() throws TiesException {
+        super.stopInternal();
+    }
 
-	@Override
-	public TiesTransportDaemon getDaemon() {
-		return this;
-	}
+    @Override
+    public TiesTransportDaemon getDaemon() {
+        return this;
+    }
 
 }

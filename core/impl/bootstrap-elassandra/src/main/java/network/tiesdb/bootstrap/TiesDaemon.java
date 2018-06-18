@@ -29,36 +29,37 @@ import network.tiesdb.context.api.TiesContext;
 import network.tiesdb.exception.TiesStartupException;
 
 /**
-* TiedDB Daemon Main Class.
-* 
-* <P>Entry point to run TiesDB with underlying services.
-* 
-* @author Anton Filatov (filatov@ties.network)
-*/
+ * TiedDB Daemon Main Class.
+ * 
+ * <P>
+ * Entry point to run TiesDB with underlying services.
+ * 
+ * @author Anton Filatov (filatov@ties.network)
+ */
 public class TiesDaemon extends TiesBootstrap {
 
-	private static final Logger logger = LoggerFactory.getLogger(TiesDaemon.class);
+    private static final Logger logger = LoggerFactory.getLogger(TiesDaemon.class);
 
-	static {
-		try {
-			ESLoggerFactory.setDefaultFactory(new LogbackESLoggerFactory());
-		} catch (Exception e) {
-			System.err.println("Failed to configure logging " + e.toString());
-			e.printStackTrace(System.err);
-		}
-	}
+    static {
+        try {
+            ESLoggerFactory.setDefaultFactory(new LogbackESLoggerFactory());
+        } catch (Exception e) {
+            System.err.println("Failed to configure logging " + e.toString());
+            e.printStackTrace(System.err);
+        }
+    }
 
-	public static TiesDaemon instance = new TiesDaemon();
+    public static TiesDaemon instance = new TiesDaemon();
 
-	public final AtomicReference<TiesContext> context = new AtomicReference<>();
+    public final AtomicReference<TiesContext> context = new AtomicReference<>();
 
-	public static void main(String[] args) {
-		try {
-			instance.init(args);
-		} catch (TiesStartupException e) {
-			logger.error("Could not start TiesDB", e);
-			System.exit(e.getExitCode());
-		}
-	}
+    public static void main(String[] args) {
+        try {
+            instance.init(args);
+        } catch (TiesStartupException e) {
+            logger.error("Could not start TiesDB", e);
+            System.exit(e.getExitCode());
+        }
+    }
 
 }

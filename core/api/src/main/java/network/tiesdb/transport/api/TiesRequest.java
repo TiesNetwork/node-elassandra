@@ -23,12 +23,13 @@ import java.io.InputStream;
 /**
  * TiesDB request API.
  * 
- * <P>Defines common request functions.
- *  
+ * <P>
+ * Defines common request functions.
+ * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesRequest {
 
-	InputStream getInputStream();
+    InputStream getInputStream();
 
 }

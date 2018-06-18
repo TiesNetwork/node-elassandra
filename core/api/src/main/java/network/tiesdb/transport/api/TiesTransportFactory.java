@@ -25,12 +25,13 @@ import network.tiesdb.service.api.TiesService;
 /**
  * TiesDB transport factory.
  * 
- * <P>Factory of TiesDB transports.
+ * <P>
+ * Factory of TiesDB transports.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesTransportFactory {
 
-	TiesTransportDaemon createTransportDaemon(TiesService service, TiesTransportConfig config) throws TiesConfigurationException;
+    TiesTransportDaemon createTransportDaemon(TiesService service, TiesTransportConfig config) throws TiesConfigurationException;
 
 }

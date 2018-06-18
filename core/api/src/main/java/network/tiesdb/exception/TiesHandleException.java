@@ -21,20 +21,21 @@ package network.tiesdb.exception;
 /**
  * Exception class for TiesDB handler logic.
  * 
- * <P>Exception thrown during request or response handling.
+ * <P>
+ * Exception thrown during request or response handling.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public class TiesHandleException extends TiesException {
 
-	private static final long serialVersionUID = 7161646256137569137L;
+    private static final long serialVersionUID = 7161646256137569137L;
 
-	public TiesHandleException(String message, Throwable cause) {
-		super(message, cause);
-	}
+    public TiesHandleException(String message, Throwable cause) {
+        super(message, cause);
+    }
 
-	public TiesHandleException(String message) {
-		super(message);
-	}
+    public TiesHandleException(String message) {
+        super(message);
+    }
 
 }

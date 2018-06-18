@@ -23,12 +23,13 @@ import network.tiesdb.service.api.TiesService;
 /**
  * TiesDB handler factory.
  * 
- * <P>Factory of TiesDB handlers.
+ * <P>
+ * Factory of TiesDB handlers.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesHandlerFactory {
 
-	TiesHandler createHandler(TiesService service);
+    TiesHandler createHandler(TiesService service);
 
 }

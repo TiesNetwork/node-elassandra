@@ -29,21 +29,21 @@ import network.tiesdb.context.api.annotation.TiesConfigElement;
 @TiesConfigElement({ TiesHandlerConfigImpl.BINDING, TiesHandlerConfigImpl.SHORT_BINDING })
 public class TiesHandlerConfigImpl implements TiesHandlerConfig {
 
-	static final String BINDING = "network.tiesdb.service.HandlerV0R0";
-	static final String SHORT_BINDING = "HandlerV0R0";
+    static final String BINDING = "network.tiesdb.service.HandlerV0R0";
+    static final String SHORT_BINDING = "HandlerV0R0";
 
-	public TiesHandlerConfigImpl() {
-		// NOP Is not empty config values
-	}
+    public TiesHandlerConfigImpl() {
+        // NOP Is not empty config values
+    }
 
-	public TiesHandlerConfigImpl(String value) {
-		// NOP If this constructor is called then config values is empty and we
-		// should use default
-	}
+    public TiesHandlerConfigImpl(String value) {
+        // NOP If this constructor is called then config values is empty and we
+        // should use default
+    }
 
-	@Override
-	public TiesHandlerFactoryImpl getTiesHandlerFactory() {
-		return new TiesHandlerFactoryImpl(this);
-	}
+    @Override
+    public TiesHandlerFactoryImpl getTiesHandlerFactory() {
+        return new TiesHandlerFactoryImpl(this);
+    }
 
 }

@@ -35,77 +35,76 @@ import org.slf4j.LoggerFactory;
 /**
  * Helper class to manage TiesDB annotations.
  * 
- * <P>Contains some utility methods for TiesDB annotations handling.
+ * <P>
+ * Contains some utility methods for TiesDB annotations handling.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public final class AnnotationHelper {
 
-	private static final Logger logger = LoggerFactory.getLogger(AnnotationHelper.class);
+    private static final Logger logger = LoggerFactory.getLogger(AnnotationHelper.class);
 
-	public static final String DEFAULT_BINDINGS_PATH = "META-INF/bindings/";
+    public static final String DEFAULT_BINDINGS_PATH = "META-INF/bindings/";
 
-	private static final String FORBID_FLAG = "!";
+    private static final String FORBID_FLAG = "!";
 
-	private static final String COMMENT_FLAG = "#";
+    private static final String COMMENT_FLAG = "#";
 
-	private final ClassLoader classLoader;
-	private final String bindingPath;
+    private final ClassLoader classLoader;
+    private final String bindingPath;
 
-	public AnnotationHelper() {
-		this(Thread.currentThread().getContextClassLoader());
-	}
+    public AnnotationHelper() {
+        this(Thread.currentThread().getContextClassLoader());
+    }
 
-	public AnnotationHelper(ClassLoader classLoader) {
-		this(classLoader, DEFAULT_BINDINGS_PATH);
-	}
+    public AnnotationHelper(ClassLoader classLoader) {
+        this(classLoader, DEFAULT_BINDINGS_PATH);
+    }
 
-	public AnnotationHelper(ClassLoader classLoader, String bindingPath) {
-		this.classLoader = classLoader;
-		this.bindingPath = bindingPath;
-	}
+    public AnnotationHelper(ClassLoader classLoader, String bindingPath) {
+        this.classLoader = classLoader;
+        this.bindingPath = bindingPath;
+    }
 
-	public <A extends Annotation> Collection<Class<? extends Object>> getBindings(Class<A> annotation)
-			throws IOException {
-		return getBindings(annotation, classLoader.getResources(bindingPath + annotation.getName()));
-	}
+    public <A extends Annotation> Collection<Class<? extends Object>> getBindings(Class<A> annotation) throws IOException {
+        return getBindings(annotation, classLoader.getResources(bindingPath + annotation.getName()));
+    }
 
-	public <A extends Annotation> Collection<Class<? extends Object>> getBindings(Class<A> annotation,
-			Collection<URL> resource) throws IOException {
-		return getBindings(annotation, Collections.enumeration(resource));
-	}
+    public <A extends Annotation> Collection<Class<? extends Object>> getBindings(Class<A> annotation, Collection<URL> resource)
+            throws IOException {
+        return getBindings(annotation, Collections.enumeration(resource));
+    }
 
-	private <A extends Annotation> Collection<Class<? extends Object>> getBindings(Class<A> annotation,
-			Enumeration<URL> resources) throws IOException {
-		if (null == annotation) {
-			throw new NullPointerException("The annotation should not be null");
-		}
-		if (null == resources) {
-			throw new NullPointerException("The resources should not be null");
-		}
-		Set<Class<? extends Object>> classes = new HashSet<>();
-		Set<Class<? extends Object>> forbidden = new HashSet<>();
-		while (resources.hasMoreElements()) {
-			try (BufferedReader reader = new BufferedReader(
-					new InputStreamReader(resources.nextElement().openStream()))) {
-				String line;
-				while (null != (line = reader.readLine())) {
-					if (line.startsWith(COMMENT_FLAG)) {
-						continue;
-					}
-					try {
-						if (line.startsWith(FORBID_FLAG)) {
-							forbidden.add(classLoader.loadClass(line.substring(FORBID_FLAG.length()).trim()));
-						} else {
-							classes.add(classLoader.loadClass(line.trim()));
-						}
-					} catch (ClassNotFoundException e) {
-						logger.warn("Could not find binding {}", line, e);
-					}
-				}
-			}
-		}
-		classes.removeAll(forbidden);
-		return classes;
-	}
+    private <A extends Annotation> Collection<Class<? extends Object>> getBindings(Class<A> annotation, Enumeration<URL> resources)
+            throws IOException {
+        if (null == annotation) {
+            throw new NullPointerException("The annotation should not be null");
+        }
+        if (null == resources) {
+            throw new NullPointerException("The resources should not be null");
+        }
+        Set<Class<? extends Object>> classes = new HashSet<>();
+        Set<Class<? extends Object>> forbidden = new HashSet<>();
+        while (resources.hasMoreElements()) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(resources.nextElement().openStream()))) {
+                String line;
+                while (null != (line = reader.readLine())) {
+                    if (line.startsWith(COMMENT_FLAG)) {
+                        continue;
+                    }
+                    try {
+                        if (line.startsWith(FORBID_FLAG)) {
+                            forbidden.add(classLoader.loadClass(line.substring(FORBID_FLAG.length()).trim()));
+                        } else {
+                            classes.add(classLoader.loadClass(line.trim()));
+                        }
+                    } catch (ClassNotFoundException e) {
+                        logger.warn("Could not find binding {}", line, e);
+                    }
+                }
+            }
+        }
+        classes.removeAll(forbidden);
+        return classes;
+    }
 }

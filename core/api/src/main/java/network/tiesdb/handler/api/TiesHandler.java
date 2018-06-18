@@ -27,16 +27,17 @@ import network.tiesdb.transport.api.TiesResponse;
 /**
  * TiesDB handler API.
  * 
- * <P>Defines common handler functions.
+ * <P>
+ * Defines common handler functions.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesHandler {
 
-	TiesHandlerConfig getTiesHandlerConfig();
+    TiesHandlerConfig getTiesHandlerConfig();
 
-	void handle(TiesRequest request, TiesResponse response) throws TiesException;
+    void handle(TiesRequest request, TiesResponse response) throws TiesException;
 
-	TiesVersion getVersion();
+    TiesVersion getVersion();
 
 }

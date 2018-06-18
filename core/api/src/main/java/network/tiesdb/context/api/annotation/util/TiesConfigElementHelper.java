@@ -23,40 +23,41 @@ import network.tiesdb.context.api.annotation.TiesConfigElement;
 /**
  * Helper class to manage TiesDB configuration elements.
  * 
- * <P>Contains utility methods for TiesDB configuration elements handling.
+ * <P>
+ * Contains utility methods for TiesDB configuration elements handling.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public final class TiesConfigElementHelper {
 
-	private static final String[] NO_BINDINGS = new String[] {};
+    private static final String[] NO_BINDINGS = new String[] {};
 
-	public static String[] getAllFor(Class<?> c, int limit) {
-		if (null == c || limit <= 0) {
-			return NO_BINDINGS;
-		}
-		TiesConfigElement annotation = c.getDeclaredAnnotation(TiesConfigElement.class);
-		if (null == annotation) {
-			return NO_BINDINGS;
-		}
-		return annotation.value();
-	}
+    public static String[] getAllFor(Class<?> c, int limit) {
+        if (null == c || limit <= 0) {
+            return NO_BINDINGS;
+        }
+        TiesConfigElement annotation = c.getDeclaredAnnotation(TiesConfigElement.class);
+        if (null == annotation) {
+            return NO_BINDINGS;
+        }
+        return annotation.value();
+    }
 
-	public static String getFor(Class<?> c) {
-		String[] bindings = getAllFor(c, 1);
-		return bindings.length > 0 ? bindings[0] : null;
-	}
+    public static String getFor(Class<?> c) {
+        String[] bindings = getAllFor(c, 1);
+        return bindings.length > 0 ? bindings[0] : null;
+    }
 
-	public static String[] getAllFor(Class<?> c) {
-		return getAllFor(c, Integer.MAX_VALUE);
-	}
+    public static String[] getAllFor(Class<?> c) {
+        return getAllFor(c, Integer.MAX_VALUE);
+    }
 
-	public static String getFor(Object o) {
-		return getFor(o.getClass());
-	}
+    public static String getFor(Object o) {
+        return getFor(o.getClass());
+    }
 
-	public static String[] getAllFor(Object o) {
-		return getAllFor(o.getClass());
-	}
+    public static String[] getAllFor(Object o) {
+        return getAllFor(o.getClass());
+    }
 
 }

@@ -25,16 +25,17 @@ import network.tiesdb.service.api.TiesServiceFactory;
 /**
  * TiesDB service configuration API.
  * 
- * <P>Defines common configuration of TiesDB service.
+ * <P>
+ * Defines common configuration of TiesDB service.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
 public interface TiesServiceConfig {
 
-	TiesServiceFactory getTiesServiceFactory();
+    TiesServiceFactory getTiesServiceFactory();
 
-	List<TiesTransportConfig> getTransportConfigs();
+    List<TiesTransportConfig> getTransportConfigs();
 
-	Boolean isServiceStopCritical();
+    Boolean isServiceStopCritical();
 
 }

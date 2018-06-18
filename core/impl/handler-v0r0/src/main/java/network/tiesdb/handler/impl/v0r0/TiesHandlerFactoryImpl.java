@@ -29,17 +29,17 @@ import network.tiesdb.service.api.TiesService;
  */
 public class TiesHandlerFactoryImpl implements TiesHandlerFactory {
 
-	private TiesHandlerConfigImpl config;
+    private TiesHandlerConfigImpl config;
 
-	public TiesHandlerFactoryImpl(TiesHandlerConfigImpl config) {
-		this.config = config;
-	}
+    public TiesHandlerFactoryImpl(TiesHandlerConfigImpl config) {
+        this.config = config;
+    }
 
-	@Override
-	public TiesHandler createHandler(TiesService service) {
-		if (null == service) {
-			throw new NullPointerException("The service should not be null");
-		}
-		return new TiesHandlerImpl(service, config);
-	}
+    @Override
+    public TiesHandler createHandler(TiesService service) {
+        if (null == service) {
+            throw new NullPointerException("The service should not be null");
+        }
+        return new TiesHandlerImpl(service, config);
+    }
 }

@@ -30,42 +30,42 @@ import org.slf4j.LoggerFactory;
  */
 public class TiesMigrationListenerImpl extends MigrationListener {
 
-	private static final Logger logger = LoggerFactory.getLogger(TiesMigrationListenerImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(TiesMigrationListenerImpl.class);
 
-	private final TiesServiceImpl service;
+    private final TiesServiceImpl service;
 
-	public TiesMigrationListenerImpl(TiesServiceImpl service) {
-		super();
-		this.service = service;
-	}
+    public TiesMigrationListenerImpl(TiesServiceImpl service) {
+        super();
+        this.service = service;
+    }
 
-	@Override
-	public void onCreateKeyspace(String ksName) {
-		logger.debug("TiesDB keyspace created {}", ksName);
-		super.onCreateKeyspace(ksName);
-	}
+    @Override
+    public void onCreateKeyspace(String ksName) {
+        logger.debug("TiesDB keyspace created {}", ksName);
+        super.onCreateKeyspace(ksName);
+    }
 
-	@Override
-	public void onDropKeyspace(String ksName) {
-		logger.debug("TiesDB keyspace removed {}", ksName);
-		super.onDropKeyspace(ksName);
-	}
+    @Override
+    public void onDropKeyspace(String ksName) {
+        logger.debug("TiesDB keyspace removed {}", ksName);
+        super.onDropKeyspace(ksName);
+    }
 
-	void registerMigrationListener() {
-		logger.trace("Waiting for MigrationManager is ready...");
-		MigrationManager.waitUntilReadyForBootstrap();
-		logger.trace("MigrationManager is ready");
-		logger.trace("Registering {}...", TiesMigrationListenerImpl.class.getSimpleName());
-		MigrationManager.instance.register(this);
-		logger.debug("{} registered successfully for {}", this, service);
-	}
+    void registerMigrationListener() {
+        logger.trace("Waiting for MigrationManager is ready...");
+        MigrationManager.waitUntilReadyForBootstrap();
+        logger.trace("MigrationManager is ready");
+        logger.trace("Registering {}...", TiesMigrationListenerImpl.class.getSimpleName());
+        MigrationManager.instance.register(this);
+        logger.debug("{} registered successfully for {}", this, service);
+    }
 
-	void unregisterMigrationListener() {
-		logger.trace("Waiting for MigrationManager is ready...");
-		MigrationManager.waitUntilReadyForBootstrap();
-		logger.trace("MigrationManager is ready");
-		logger.trace("Unregistering {}...", TiesMigrationListenerImpl.class.getSimpleName());
-		MigrationManager.instance.unregister(this);
-		logger.debug("{} unregistered successfully for {}", this, service);
-	}
+    void unregisterMigrationListener() {
+        logger.trace("Waiting for MigrationManager is ready...");
+        MigrationManager.waitUntilReadyForBootstrap();
+        logger.trace("MigrationManager is ready");
+        logger.trace("Unregistering {}...", TiesMigrationListenerImpl.class.getSimpleName());
+        MigrationManager.instance.unregister(this);
+        logger.debug("{} unregistered successfully for {}", this, service);
+    }
 }

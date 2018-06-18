@@ -77,7 +77,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
     private static final Encoder nameEncoder = EncoderManager.getEncoder(EncoderManager.BASE32_NP);
 
-    private static final BigDecimal MONTH_DURATION_VALUE = BigDecimal.valueOf(60 * 60 * 24 * 31, 0); // Standard month is 31 day
+    private static final BigDecimal MONTH_DURATION_VALUE = BigDecimal.valueOf(60 * 60 * 24 * 31, 0); // Standard month
+                                                                                                     // is 31 day
     private static final DurationUnit MONTH = new DurationUnit() {
 
         @Override
@@ -419,12 +420,14 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
                     @Override
                     public Void on(FunctionSelector s) throws TiesServiceScopeException {
-                        String fieldNameId = getNameId("FLD", s.getAlias());
+                        String aliasName = s.getAlias();
+                        aliasName = null != aliasName ? aliasName : s.getName();
+                        String aliasNameId = getNameId("FUN", aliasName);
                         qb.append(s.getName());
                         qb.append('(');
                         forArguments(qv, qb, s.getArguments());
                         qb.append(") as \"");
-                        qb.append(fieldNameId);
+                        qb.append(aliasNameId);
                         qb.append('"');
                         return null;
                     }
