@@ -66,9 +66,11 @@ public class WebSocketServerInitializer extends ChannelInitializer<SocketChannel
 		@Override
 		protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) throws Exception {
 			switch (evt.state()) {
+			case ALL_IDLE:
 			case WRITER_IDLE:
 				ctx.channel().write(new PingWebSocketFrame());
 				break;
+			case READER_IDLE:
 			default:
 				ctx.close();
 			}
