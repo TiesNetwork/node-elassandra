@@ -22,11 +22,23 @@ import java.util.Map;
 
 public interface TiesServiceScopeAction {
 
-    long getEntryVersion();
+    interface TiesValue {
+
+        String getType();
+
+        Object get();
+
+        byte[] getBytes();
+
+        byte[] getFieldFullRawBytes();
+
+    }
 
     String getTablespaceName();
 
     String getTableName();
+
+    long getEntryVersion();
 
     byte[] getHeaderRawBytes();
 

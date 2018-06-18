@@ -25,7 +25,9 @@ import static java.util.Objects.requireNonNull;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -37,25 +39,37 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.EventState;
 import com.tiesdb.protocol.v0r0.ebml.format.UUIDFormat;
+import com.tiesdb.protocol.v0r0.reader.ComputeRetrieveReader.ComputeRetrieve;
+import com.tiesdb.protocol.v0r0.reader.FieldReader.Field;
+import com.tiesdb.protocol.v0r0.reader.FieldRetrieveReader.FieldRetrieve;
+import com.tiesdb.protocol.v0r0.reader.FilterReader.Filter;
+import com.tiesdb.protocol.v0r0.reader.FunctionReader.ArgumentFunction;
+import com.tiesdb.protocol.v0r0.reader.FunctionReader.ArgumentReference;
+import com.tiesdb.protocol.v0r0.reader.FunctionReader.ArgumentStatic;
+import com.tiesdb.protocol.v0r0.reader.FunctionReader.FunctionArgument;
+import com.tiesdb.protocol.v0r0.reader.ModificationEntryReader.ModificationEntry;
+import com.tiesdb.protocol.v0r0.reader.ModificationRequestReader.ModificationRequest;
+import com.tiesdb.protocol.v0r0.reader.Reader.Request;
+import com.tiesdb.protocol.v0r0.reader.RecollectionRequestReader.RecollectionRequest;
+import com.tiesdb.protocol.v0r0.reader.RecollectionRequestReader.Retrieve;
+import com.tiesdb.protocol.v0r0.reader.RequestReader;
+import com.tiesdb.protocol.v0r0.writer.ModificationErrorWriter.ModificationErrorResult;
+import com.tiesdb.protocol.v0r0.writer.ModificationResponseWriter.ModificationResponse;
+import com.tiesdb.protocol.v0r0.writer.ModificationResponseWriter.ModificationResult;
+import com.tiesdb.protocol.v0r0.writer.ModificationSuccessWriter.ModificationSuccessResult;
+import com.tiesdb.protocol.v0r0.writer.ResponseWriter;
+import com.tiesdb.protocol.v0r0.writer.Writer.Response;
 
-import network.tiesdb.handler.impl.v0r0.controller.reader.EntryReader.Entry;
-import network.tiesdb.handler.impl.v0r0.controller.reader.FieldReader.Field;
-import network.tiesdb.handler.impl.v0r0.controller.reader.ModificationRequestReader.ModificationRequest;
-import network.tiesdb.handler.impl.v0r0.controller.reader.Reader.Request;
-import network.tiesdb.handler.impl.v0r0.controller.reader.RequestReader;
-import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationResponseWriter.ModificationResponse;
-import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationResponseWriter.ModificationResult;
-import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationSuccessWriter.ModificationSuccessResult;
-import network.tiesdb.handler.impl.v0r0.controller.writer.ModificationErrorWriter.ModificationErrorResult;
-import network.tiesdb.handler.impl.v0r0.controller.writer.ResponseWriter;
-import network.tiesdb.handler.impl.v0r0.controller.writer.Writer.Response;
 import network.tiesdb.service.api.TiesService;
 import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.service.scope.api.TiesServiceScopeAction;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
-import network.tiesdb.service.scope.api.TiesValue;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query;
 import network.tiesdb.type.Duration;
+import one.utopic.sparse.ebml.format.ASCIIStringFormat;
 import one.utopic.sparse.ebml.format.BigDecimalFormat;
+import one.utopic.sparse.ebml.format.BigIntegerFormat;
 import one.utopic.sparse.ebml.format.BytesFormat;
 import one.utopic.sparse.ebml.format.DateFormat;
 import one.utopic.sparse.ebml.format.DoubleFormat;
@@ -67,6 +81,108 @@ import one.utopic.sparse.ebml.format.UTF8StringFormat;
 public class RequestController implements Request.Visitor<Response> {
 
     private static final Logger LOG = LoggerFactory.getLogger(RequestController.class);
+
+    private static class TiesServiceScopeActionEntry implements TiesServiceScopeAction {
+
+        private final ModificationEntry modificationEntry;
+        private final Map<String, TiesValue> fieldValues;
+
+        public TiesServiceScopeActionEntry(ModificationEntry modificationEntry) throws TiesServiceScopeException {
+            this.modificationEntry = modificationEntry;
+            this.fieldValues = new HashMap<>();
+            for (Map.Entry<String, Field> e : modificationEntry.getFields().entrySet()) {
+                if (null != e.getValue().getRawValue()) {
+                    Field field = e.getValue();
+                    Object fieldValue = deserialize(field);
+                    fieldValues.put(e.getKey(), new TiesValue() {
+
+                        @Override
+                        public String getType() {
+                            return field.getType();
+                        }
+
+                        @Override
+                        public byte[] getFieldFullRawBytes() {
+                            return field.getRawBytes();
+                        }
+
+                        @Override
+                        public byte[] getBytes() {
+                            return field.getRawValue();
+                        }
+
+                        @Override
+                        public Object get() {
+                            return fieldValue;
+                        }
+                    });
+                }
+            }
+        }
+
+        @Override
+        public String getTablespaceName() {
+            return modificationEntry.getHeader().getTablespaceName();
+        }
+
+        @Override
+        public String getTableName() {
+            return modificationEntry.getHeader().getTableName();
+        }
+
+        @Override
+        public byte[] getHeaderRawBytes() {
+            return modificationEntry.getHeader().getRawBytes();
+        }
+
+        @Override
+        public Map<String, TiesValue> getFieldValues() {
+            return fieldValues;
+        }
+
+        @Override
+        public long getEntryVersion() {
+            return modificationEntry.getHeader().getEntryVersion();
+        }
+    }
+
+    private static Object deserialize(Field field) throws TiesServiceScopeException {
+        return getFormatForType(field.getType()).apply(field.getRawValue());
+    }
+
+    private static Function<byte[], ?> getFormatForType(String type) throws TiesServiceScopeException {
+        switch (type) {
+        case "int":
+        case "integer":
+            return IntegerFormat.INSTANCE::readFormat;
+        case "long":
+            return LongFormat.INSTANCE::readFormat;
+        case "float":
+            return FloatFormat.INSTANCE::readFormat;
+        case "double":
+            return DoubleFormat.INSTANCE::readFormat;
+        case "decimal":
+            return BigDecimalFormat.INSTANCE::readFormat;
+        case "bigint":
+            return BigIntegerFormat.INSTANCE::readFormat;
+        case "string":
+            return UTF8StringFormat.INSTANCE::readFormat;
+        case "ascii":
+            return ASCIIStringFormat.INSTANCE::readFormat;
+        case "binary":
+            return BytesFormat.INSTANCE::readFormat;
+        case "time":
+            return DateFormat.INSTANCE::readFormat;
+        case "uuid":
+            return UUIDFormat.INSTANCE::readFormat;
+        case "boolean":
+            return data -> IntegerFormat.INSTANCE.readFormat(data) != 0;
+        case "duration":
+            return data -> new Duration(BigDecimalFormat.INSTANCE.readFormat(data));
+        default:
+            throw new TiesServiceScopeException("Unknown type " + type);
+        }
+    }
 
     private final TiesService service;
     private final RequestReader requestReader;
@@ -120,12 +236,12 @@ public class RequestController implements Request.Visitor<Response> {
         LOG.debug("Service scope: {}", serviceScope);
 
         LinkedList<ModificationResult> results = new LinkedList<>();
-        for (Entry entry : request.getEntries()) {
+        for (ModificationEntry modificationEntry : request.getEntries()) {
 
             try {
-                TiesServiceScopeAction action = new TiesServiceScopeActionEntry(entry);
+                TiesServiceScopeAction action = new TiesServiceScopeActionEntry(modificationEntry);
 
-                switch (entry.getHeader().getEntryType()) {
+                switch (modificationEntry.getHeader().getEntryType()) {
                 case ENTRY_TYPE_INSERT:
                     serviceScope.insert(action);
                     break;
@@ -133,11 +249,11 @@ public class RequestController implements Request.Visitor<Response> {
                     serviceScope.update(action);
                     break;
                 default:
-                    throw new TiesServiceScopeException("Unknown EntryType " + entry.getHeader().getEntryType());
+                    throw new TiesServiceScopeException("Unknown EntryType " + modificationEntry.getHeader().getEntryType());
                 }
 
             } catch (TiesServiceScopeException e) {
-                LOG.error("Error handling entry {}", entry, e);
+                LOG.error("Error handling ModificationRequest.Entry {}", modificationEntry, e);
                 results.add(new ModificationErrorResult() {
 
                     @Override
@@ -147,7 +263,7 @@ public class RequestController implements Request.Visitor<Response> {
 
                     @Override
                     public byte[] getEntryHeaderHash() {
-                        return entry.getHeader().getHeaderHash();
+                        return modificationEntry.getHeader().getHeaderHash();
                     }
 
                 });
@@ -157,7 +273,7 @@ public class RequestController implements Request.Visitor<Response> {
 
                 @Override
                 public byte[] getEntryHeaderHash() {
-                    return entry.getHeader().getHeaderHash();
+                    return modificationEntry.getHeader().getHeaderHash();
                 }
 
             });
@@ -178,101 +294,182 @@ public class RequestController implements Request.Visitor<Response> {
         };
     }
 
-    private static class TiesServiceScopeActionEntry implements TiesServiceScopeAction {
+    private static void convert(List<FunctionArgument> from, Consumer<Query.Function.Argument> c) {
+        for (FunctionArgument arg : from) {
+            c.accept(arg.accept(new FunctionArgument.Visitor<Query.Function.Argument>() {
 
-        private final Entry entry;
-        private final Map<String, TiesValue> fieldValues;
+                @Override
+                public Query.Function.Argument on(ArgumentFunction arg) {
+                    return new Query.Function.FunctionArgument() {
 
-        public TiesServiceScopeActionEntry(Entry entry) throws TiesServiceScopeException {
-            this.entry = entry;
-            this.fieldValues = new HashMap<>();
-            for (Map.Entry<String, Field> e : entry.getFields().entrySet()) {
-                if (null != e.getValue().getRawValue()) {
-                    Field field = e.getValue();
-                    Object fieldValue = deserialize(field);
-                    fieldValues.put(e.getKey(), new TiesValue() {
+                        List<Argument> arguments = new LinkedList<>();
+                        {
+                            convert(arg.getFunction().getArguments(), arguments::add);
+                        }
+
+                        @Override
+                        public String getName() {
+                            return arg.getFunction().getName();
+                        }
+
+                        @Override
+                        public List<Argument> getArguments() {
+                            return arguments;
+                        }
+
+                    };
+                }
+
+                @Override
+                public Query.Function.Argument on(ArgumentReference arg) {
+                    return new Query.Function.FieldArgument() {
+
+                        @Override
+                        public String getFieldName() {
+                            return arg.getFieldName();
+                        }
+
+                    };
+                }
+
+                @Override
+                public Query.Function.Argument on(ArgumentStatic arg) {
+                    return new Query.Function.ValueArgument() {
+
+                        @Override
+                        public Object getValue() throws TiesServiceScopeException {
+                            return getFormatForType(getType()).apply(getRawValue());
+                        }
 
                         @Override
                         public String getType() {
-                            return field.getType();
+                            return arg.getType();
                         }
 
                         @Override
-                        public byte[] getFieldFullRawBytes() {
-                            return field.getRawBytes();
+                        public byte[] getRawValue() {
+                            return arg.getRawValue();
                         }
-
-                        @Override
-                        public byte[] getBytes() {
-                            return field.getRawValue();
-                        }
-
-                        @Override
-                        public Object get() {
-                            return fieldValue;
-                        }
-                    });
+                    };
                 }
-            }
-        }
-
-        @Override
-        public String getTablespaceName() {
-            return entry.getHeader().getTablespaceName();
-        }
-
-        @Override
-        public String getTableName() {
-            return entry.getHeader().getTableName();
-        }
-
-        @Override
-        public byte[] getHeaderRawBytes() {
-            return entry.getHeader().getRawBytes();
-        }
-
-        @Override
-        public Map<String, TiesValue> getFieldValues() {
-            return fieldValues;
-        }
-
-        @Override
-        public long getEntryVersion() {
-            return entry.getHeader().getEntryVersion();
+            }));
         }
     }
 
-    private static Object deserialize(Field field) throws TiesServiceScopeException {
-        return getFormatForType(field.getType()).apply(field.getRawValue());
-    }
+    @Override
+    public Response on(RecollectionRequest request) throws TiesDBProtocolException {
+        requireNonNull(request);
 
-    private static Function<byte[], ?> getFormatForType(String type) throws TiesServiceScopeException {
-        switch (type) {
-        case "integer":
-            return IntegerFormat.INSTANCE::readFormat;
-        case "long":
-            return LongFormat.INSTANCE::readFormat;
-        case "float":
-            return FloatFormat.INSTANCE::readFormat;
-        case "double":
-            return DoubleFormat.INSTANCE::readFormat;
-        case "decimal":
-            return BigDecimalFormat.INSTANCE::readFormat;
-        case "string":
-            return UTF8StringFormat.INSTANCE::readFormat;
-        case "binary":
-            return BytesFormat.INSTANCE::readFormat;
-        case "time":
-            return DateFormat.INSTANCE::readFormat;
-        case "uuid":
-            return UUIDFormat.INSTANCE::readFormat;
-        case "boolean":
-            return data -> IntegerFormat.INSTANCE.readFormat(data) != 0;
-        case "duration":
-            return data -> new Duration(BigDecimalFormat.INSTANCE.readFormat(data));
-        default:
-            throw new TiesServiceScopeException("Unknown field type " + type);
+        TiesServiceScope serviceScope = service.newServiceScope();
+        LOG.debug("Service scope: {}", serviceScope);
+
+        try {
+            serviceScope.select(new TiesServiceScopeQuery() {
+
+                private final List<Query.Selector> selectors = new LinkedList<>();
+                {
+                    for (Retrieve r : request.getRetrieves()) {
+                        selectors.add(r.accept(new Retrieve.Visitor<Query.Selector>() {
+
+                            @Override
+                            public Query.Selector on(FieldRetrieve retrieve) {
+                                return new Query.Selector.FieldSelector() {
+                                    @Override
+                                    public String getFieldName() {
+                                        return retrieve.getFieldName();
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public Query.Selector on(ComputeRetrieve retrieve) {
+                                return new Query.Selector.FunctionSelector() {
+
+                                    List<Argument> arguments = new LinkedList<>();
+                                    {
+                                        convert(retrieve.getArguments(), arguments::add);
+                                    }
+
+                                    @Override
+                                    public String getName() {
+                                        return retrieve.getName();
+                                    }
+
+                                    @Override
+                                    public List<Argument> getArguments() {
+                                        return arguments;
+                                    }
+
+                                    @Override
+                                    public String getAlias() {
+                                        return retrieve.getAlias();
+                                    }
+                                };
+                            }
+                        }));
+                    }
+                }
+                private final List<Query.Filter> filters = new LinkedList<>();
+                {
+                    for (Filter filter : request.getFilters()) {
+                        filters.add(new Query.Filter() {
+
+                            private final List<Argument> arguments = new LinkedList<>();
+                            {
+                                convert(filter.getArguments(), arguments::add);
+                            }
+
+                            @Override
+                            public String getName() {
+                                return filter.getOperator();
+                            }
+
+                            @Override
+                            public List<Argument> getArguments() {
+                                return arguments;
+                            }
+
+                            @Override
+                            public String getFieldName() {
+                                return filter.getFieldName();
+                            }
+                        });
+                    }
+                }
+
+                @Override
+                public Query getQuery() {
+                    return new Query() {
+
+                        @Override
+                        public String getTablespaceName() {
+                            return request.getTablespaceName();
+                        }
+
+                        @Override
+                        public String getTableName() {
+                            return request.getTableName();
+                        }
+
+                        @Override
+                        public List<Selector> getSelectors() {
+                            return selectors;
+                        }
+
+                        @Override
+                        public List<Filter> getFilters() {
+                            return filters;
+                        }
+                    };
+                }
+
+            });
+            throw new TiesDBProtocolException("Success: " + request.toString());
+        } catch (TiesServiceScopeException e) {
+            LOG.error("Error handling RecollectionRequest {}", request, e);
+            throw new TiesDBProtocolException("Error: " + request.toString());
         }
+
     }
 
 }

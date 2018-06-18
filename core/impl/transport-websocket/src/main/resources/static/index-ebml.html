@@ -24,7 +24,13 @@
         return arr.buffer;
       }
       function buf2hex(buf) {
-        return Array.prototype.map.call(new Uint8Array(buf), x => ('00' + x.toString(16)).slice(-2)).join('');;
+        return Array.prototype.map.call(new Uint8Array(buf), x => ('00' + x.toString(16)).slice(-2)).join('');
+      }
+      function filter(str, token) {
+        return str.replace(/[^\w\s\d\u2000-\u206F\u2E00-\u2E7F\\'!"#\$%&()*+,\-.\/:;<=>?@\[\]^_`{|}~]/gm, token);
+      }
+      function nobreak(str) {
+        return str.replace(/[\r\n]/gm, ' ');
       }
    </script>
    <body onload="onLoad()">
@@ -41,7 +47,11 @@
              socket.binaryType = "arraybuffer";
              socket.onmessage = function(event) {
                var ta = document.getElementById('responseText').editor;
-               ta.setValue("/* " + new Date().toLocaleString() + " */\n" + textdec.decode(event.data) + "\n" + buf2hex(event.data).toUpperCase() + "\n" + ta.getValue());
+               var response = buf2hex(event.data).toUpperCase();
+	           if(response.startsWith("C001BA5E")){
+	         	  response = response.replace(/^C001BA5E......................../, '');
+	           }
+               ta.setValue("/* " + new Date().toLocaleString() + " */\n" + filter(nobreak(textdec.decode(event.data)), '\ufffd') + "\n" + response + "\n" + ta.getValue());
              };
              socket.onopen = function(event) {
                var ta = document.getElementById('responseText').editor;

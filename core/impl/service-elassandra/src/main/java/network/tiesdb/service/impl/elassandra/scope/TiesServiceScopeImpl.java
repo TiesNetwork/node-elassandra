@@ -23,9 +23,11 @@ import static java.util.Objects.requireNonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -53,8 +55,18 @@ import network.tiesdb.api.TiesVersion;
 import network.tiesdb.service.api.TiesService;
 import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.service.scope.api.TiesServiceScopeAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeAction.TiesValue;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
-import network.tiesdb.service.scope.api.TiesValue;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Filter;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function.Argument;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function.FieldArgument;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function.FunctionArgument;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function.ValueArgument;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Selector;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Selector.FieldSelector;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Selector.FunctionSelector;
 import network.tiesdb.type.Duration;
 import network.tiesdb.type.Duration.DurationUnit;
 
@@ -162,9 +174,9 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         List<Object> fieldValues = new ArrayList<>(actionFields.size());
 
         {
-            fieldNames.add("header");
+            fieldNames.add("HEADER");
             fieldValues.add(ByteBuffer.wrap(action.getHeaderRawBytes()));
-            fieldNames.add("version");
+            fieldNames.add("VERSION");
             fieldValues.add(action.getEntryVersion());
         }
 
@@ -258,9 +270,9 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         List<Object> fieldValues = new ArrayList<>(fieldNames.size());
 
         {
-            fieldNames.add("header");
+            fieldNames.add("HEADER");
             fieldValues.add(ByteBuffer.wrap(action.getHeaderRawBytes()));
-            fieldNames.add("version");
+            fieldNames.add("VERSION");
             fieldValues.add(action.getEntryVersion());
         }
 
@@ -375,6 +387,144 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     public static void main(String[] names) {
         for (String name : names) {
             System.out.println(getNameId("", name) + " " + name);
+        }
+    }
+
+    @Override
+    public void select(TiesServiceScopeQuery scope) throws TiesServiceScopeException {
+
+        Query request = scope.getQuery();
+
+        String tablespaceName = request.getTablespaceName();
+        String tableName = request.getTableName();
+        logger.debug("Select from `{}`.`{}`", tablespaceName, tableName);
+
+        String tablespaceNameId = getNameId("TIE", tablespaceName);
+        String tableNameId = getNameId("TBL", tableName);
+        logger.debug("Mapping table `{}`.`{}` to {}.{}", tablespaceName, tableName, tablespaceNameId, tableNameId);
+
+        CFMetaData cfMetaData = Schema.instance.getCFMetaData(tablespaceNameId, tableNameId);
+
+        if (null == cfMetaData) {
+            throw new TiesServiceScopeException("Table `" + tablespaceName + "`.`" + tableName + "` was not found");
+        }
+
+        List<Selector> selectors = request.getSelectors();
+
+        List<Object> qv = new LinkedList<>();
+        StringBuilder qb = new StringBuilder();
+        qb.append("select ");
+        if (!selectors.isEmpty()) {
+            for (Selector sel : selectors) {
+                sel.accept(new Selector.Visitor<Void>() {
+
+                    @Override
+                    public Void on(FunctionSelector s) throws TiesServiceScopeException {
+                        String fieldNameId = getNameId("FLD", s.getAlias());
+                        qb.append(s.getName());
+                        qb.append('(');
+                        forArguments(qv, qb, s.getArguments());
+                        qb.append(") as \"");
+                        qb.append(fieldNameId);
+                        qb.append('"');
+                        return null;
+                    }
+
+                    @Override
+                    public Void on(FieldSelector s) {
+                        String fieldNameId = getNameId("FLD", s.getFieldName());
+                        qb.append('"');
+                        qb.append(fieldNameId);
+                        qb.append('"');
+                        return null;
+                    }
+                });
+                qb.append(',');
+            }
+            qb.setLength(qb.length() - 1);
+        } else {
+            qb.append('*');
+        }
+        qb.append(" from \"");
+        qb.append(tablespaceNameId);
+        qb.append("\".\"");
+        qb.append(tableNameId);
+        qb.append("\"");
+
+        List<Filter> filters = request.getFilters();
+        if (!filters.isEmpty()) {
+            qb.append(" where \"");
+            for (Filter filter : filters) {
+                String fieldNameId = getNameId("FLD", filter.getFieldName());
+                qb.append(fieldNameId);
+                qb.append("\" ");
+                String operator = filter.getName().toLowerCase();
+                qb.append(operator);
+                if ("in".equals(operator)) {
+                    qb.append('(');
+                    forArguments(qv, qb, filter.getArguments());
+                    qb.append(')');
+                } else {
+                    forArguments(qv, qb, filter.getArguments());
+                }
+                qb.append(" and ");
+            }
+            qb.setLength(qb.length() - 5);
+        }
+
+        System.out.println(qb.toString());
+
+        UntypedResultSet result = QueryProcessor.execute(qb.toString(), ConsistencyLevel.ALL, qv.toArray());
+        logger.debug("Select result {}", result);
+        if (logger.isDebugEnabled()) {
+            for (UntypedResultSet.Row row : result) {
+                logger.debug("Select result row {}", row);
+                for (ColumnSpecification col : row.getColumns()) {
+                    logger.debug("Select result row col {} = {}", col.name, convert(col.type.compose(row.getBlob(col.name.toString()))));
+                }
+            }
+        }
+    }
+
+    private Object convert(Object compose) {
+        if (compose instanceof ByteBuffer) {
+            byte[] buf = new byte[((ByteBuffer) compose).remaining()];
+            ((ByteBuffer) compose).get(buf);
+            return DatatypeConverter.printHexBinary(buf);
+        }
+        return compose;
+    }
+
+    private static void forArguments(List<Object> qv, StringBuilder qb, List<Argument> arguments) throws TiesServiceScopeException {
+        for (Argument arg : arguments) {
+            arg.accept(new Argument.Visitor<Void>() {
+
+                @Override
+                public Void on(FunctionArgument a) throws TiesServiceScopeException {
+                    qb.append(a.getName());
+                    qb.append('(');
+                    for (Argument aa : a.getArguments()) {
+                        aa.accept(this);
+                    }
+                    qb.append(')');
+                    return null;
+                }
+
+                @Override
+                public Void on(ValueArgument a) throws TiesServiceScopeException {
+                    qv.add(a.getValue());
+                    qb.append('?');
+                    return null;
+                }
+
+                @Override
+                public Void on(FieldArgument a) {
+                    qb.append('"');
+                    qb.append(getNameId("FLD", a.getFieldName()));
+                    qb.append('"');
+                    return null;
+                }
+            });
         }
     }
 }
