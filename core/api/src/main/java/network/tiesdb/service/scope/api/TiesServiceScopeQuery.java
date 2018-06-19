@@ -53,8 +53,8 @@ public interface TiesServiceScopeQuery {
             interface FunctionArgument extends Function, Argument {
 
                 @Override
-                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
-                    return v.on(this);
+                default void accept(Visitor v) throws TiesServiceScopeException {
+                    v.on(this);
                 }
 
             }
@@ -62,8 +62,8 @@ public interface TiesServiceScopeQuery {
             interface FieldArgument extends Field, Argument {
 
                 @Override
-                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
-                    return v.on(this);
+                default void accept(Visitor v) throws TiesServiceScopeException {
+                    v.on(this);
                 }
 
             }
@@ -71,25 +71,25 @@ public interface TiesServiceScopeQuery {
             interface ValueArgument extends Value, Argument {
 
                 @Override
-                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
-                    return v.on(this);
+                default void accept(Visitor v) throws TiesServiceScopeException {
+                    v.on(this);
                 }
 
             }
 
             interface Argument {
 
-                interface Visitor<T> {
+                interface Visitor {
 
-                    T on(FunctionArgument a) throws TiesServiceScopeException;
+                    void on(FunctionArgument a) throws TiesServiceScopeException;
 
-                    T on(ValueArgument a) throws TiesServiceScopeException;
+                    void on(ValueArgument a) throws TiesServiceScopeException;
 
-                    T on(FieldArgument a) throws TiesServiceScopeException;
+                    void on(FieldArgument a) throws TiesServiceScopeException;
 
                 }
 
-                <T> T accept(Visitor<T> v) throws TiesServiceScopeException;
+                void accept(Visitor v) throws TiesServiceScopeException;
 
             }
 
@@ -106,8 +106,8 @@ public interface TiesServiceScopeQuery {
                 String getAlias();
 
                 @Override
-                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
-                    return v.on(this);
+                default void accept(Visitor v) throws TiesServiceScopeException {
+                    v.on(this);
                 }
 
             }
@@ -115,21 +115,21 @@ public interface TiesServiceScopeQuery {
             interface FieldSelector extends Field, Selector {
 
                 @Override
-                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
-                    return v.on(this);
+                default void accept(Visitor v) throws TiesServiceScopeException {
+                    v.on(this);
                 }
 
             }
 
-            interface Visitor<T> {
+            interface Visitor {
 
-                T on(FunctionSelector s) throws TiesServiceScopeException;
+                void on(FunctionSelector s) throws TiesServiceScopeException;
 
-                T on(FieldSelector s) throws TiesServiceScopeException;
+                void on(FieldSelector s) throws TiesServiceScopeException;
 
             }
 
-            <T> T accept(Visitor<T> v) throws TiesServiceScopeException;
+            void accept(Visitor v) throws TiesServiceScopeException;
         }
 
         interface Filter extends Function {

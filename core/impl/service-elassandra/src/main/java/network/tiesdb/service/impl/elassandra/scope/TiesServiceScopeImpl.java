@@ -58,7 +58,9 @@ import network.tiesdb.service.scope.api.TiesServiceScopeAction.TiesValue;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
 import network.tiesdb.service.scope.api.TiesServiceScopeQuery;
 import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Filter;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function;
 import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function.Argument;
+import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function.Argument.Visitor;
 import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function.FieldArgument;
 import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function.FunctionArgument;
 import network.tiesdb.service.scope.api.TiesServiceScopeQuery.Query.Function.ValueArgument;
@@ -102,7 +104,6 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
     @Override
     public void close() throws IOException {
-        // TODO free used resources
         logger.debug(this + " is closed");
     }
 
@@ -383,13 +384,6 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         throw new TiesServiceScopeException("Mapping " + value.getClass() + " to " + columnType.getSerializer().getType() + " failed.");
     }
 
-    // TODO Make useful utility class and remove this shit
-    public static void main(String[] names) {
-        for (String name : names) {
-            System.out.println(getNameId("", name) + " " + name);
-        }
-    }
-
     @Override
     public void select(TiesServiceScopeQuery scope) throws TiesServiceScopeException {
 
@@ -409,36 +403,34 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Table `" + tablespaceName + "`.`" + tableName + "` was not found");
         }
 
-        List<Selector> selectors = request.getSelectors();
-
         List<Object> qv = new LinkedList<>();
         StringBuilder qb = new StringBuilder();
+
+        Argument.Visitor argVisitor = newArgumentVisitor(qv, qb);
+
+        List<Selector> selectors = request.getSelectors();
         qb.append("select ");
         if (!selectors.isEmpty()) {
             for (Selector sel : selectors) {
-                sel.accept(new Selector.Visitor<Void>() {
+                sel.accept(new Selector.Visitor() {
 
                     @Override
-                    public Void on(FunctionSelector s) throws TiesServiceScopeException {
+                    public void on(FunctionSelector s) throws TiesServiceScopeException {
                         String aliasName = s.getAlias();
                         aliasName = null != aliasName ? aliasName : s.getName();
-                        String aliasNameId = getNameId("FUN", aliasName);
-                        qb.append(s.getName());
-                        qb.append('(');
-                        forArguments(qv, qb, s.getArguments());
-                        qb.append(") as \"");
+                        String aliasNameId = getNameId("COM", aliasName);
+                        forFunction(argVisitor, qb, s);
+                        qb.append(" as \"");
                         qb.append(aliasNameId);
                         qb.append('"');
-                        return null;
                     }
 
                     @Override
-                    public Void on(FieldSelector s) {
+                    public void on(FieldSelector s) {
                         String fieldNameId = getNameId("FLD", s.getFieldName());
                         qb.append('"');
                         qb.append(fieldNameId);
                         qb.append('"');
-                        return null;
                     }
                 });
                 qb.append(',');
@@ -457,18 +449,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         if (!filters.isEmpty()) {
             qb.append(" where \"");
             for (Filter filter : filters) {
-                String fieldNameId = getNameId("FLD", filter.getFieldName());
-                qb.append(fieldNameId);
-                qb.append("\" ");
-                String operator = filter.getName().toLowerCase();
-                qb.append(operator);
-                if ("in".equals(operator)) {
-                    qb.append('(');
-                    forArguments(qv, qb, filter.getArguments());
-                    qb.append(')');
-                } else {
-                    forArguments(qv, qb, filter.getArguments());
-                }
+                forFilter(argVisitor, qb, filter);
                 qb.append(" and ");
             }
             qb.setLength(qb.length() - 5);
@@ -482,51 +463,95 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             for (UntypedResultSet.Row row : result) {
                 logger.debug("Select result row {}", row);
                 for (ColumnSpecification col : row.getColumns()) {
-                    logger.debug("Select result row col {} = {}", col.name, convert(col.type.compose(row.getBlob(col.name.toString()))));
+                    logger.debug("Select result row col {} = {}", col.name,
+                            prettyPrint(col.type.compose(row.getBlob(col.name.toString()))));
                 }
             }
         }
     }
 
-    private Object convert(Object compose) {
-        if (compose instanceof ByteBuffer) {
-            byte[] buf = new byte[((ByteBuffer) compose).remaining()];
-            ((ByteBuffer) compose).get(buf);
+    private static Object prettyPrint(Object o) {
+        if (o instanceof ByteBuffer) {
+            byte[] buf = new byte[((ByteBuffer) o).remaining()];
+            ((ByteBuffer) o).get(buf);
             return DatatypeConverter.printHexBinary(buf);
         }
-        return compose;
+        return o;
     }
 
-    private static void forArguments(List<Object> qv, StringBuilder qb, List<Argument> arguments) throws TiesServiceScopeException {
+    private static void forArguments(Argument.Visitor v, StringBuilder qb, List<Argument> arguments) throws TiesServiceScopeException {
         for (Argument arg : arguments) {
-            arg.accept(new Argument.Visitor<Void>() {
+            arg.accept(v);
+            qb.append(',');
+        }
+        qb.setLength(qb.length() - 1);
+    }
 
-                @Override
-                public Void on(FunctionArgument a) throws TiesServiceScopeException {
-                    qb.append(a.getName());
-                    qb.append('(');
-                    for (Argument aa : a.getArguments()) {
-                        aa.accept(this);
-                    }
-                    qb.append(')');
-                    return null;
-                }
-
-                @Override
-                public Void on(ValueArgument a) throws TiesServiceScopeException {
-                    qv.add(a.getValue());
-                    qb.append('?');
-                    return null;
-                }
-
-                @Override
-                public Void on(FieldArgument a) {
-                    qb.append('"');
-                    qb.append(getNameId("FLD", a.getFieldName()));
-                    qb.append('"');
-                    return null;
-                }
-            });
+    private static void forFilter(Argument.Visitor v, StringBuilder qb, Filter fil) throws TiesServiceScopeException {
+        String fieldNameId = getNameId("FLD", fil.getFieldName());
+        qb.append(fieldNameId);
+        qb.append("\" ");
+        String operator = fil.getName().toLowerCase();
+        qb.append(operator);
+        switch (operator.toLowerCase()) {
+        case "in": {
+            qb.append('(');
+            forArguments(v, qb, fil.getArguments());
+            qb.append(')');
+            break;
+        }
+        default:
+            forArguments(v, qb, fil.getArguments());
         }
     }
+
+    private static void forFunction(Argument.Visitor v, StringBuilder qb, Function fun) throws TiesServiceScopeException {
+        String fName = fun.getName();
+        qb.append(fName);
+        qb.append('(');
+        switch (fName.toLowerCase()) {
+        case "cast": {
+            List<Argument> fArguments = fun.getArguments();
+            if (null == fArguments || fArguments.size() != 2) {
+                throw new TiesServiceScopeException("CAST should have exactly two arguments");
+            }
+            Argument[] cArguments = fArguments.toArray(new Argument[2]);
+            if (!(cArguments[1] instanceof ValueArgument)) {
+                throw new TiesServiceScopeException("CAST second argument shuld be a type name");
+            }
+            cArguments[0].accept(v);
+            qb.append(" as ");
+            qb.append(((ValueArgument) cArguments[1]).getValue());
+            break;
+        }
+        default:
+            forArguments(v, qb, fun.getArguments());
+        }
+        qb.append(')');
+    }
+
+    private static Visitor newArgumentVisitor(List<Object> qv, StringBuilder qb) {
+        return new Argument.Visitor() {
+
+            @Override
+            public void on(FunctionArgument a) throws TiesServiceScopeException {
+                forFunction(this, qb, a);
+            }
+
+            @Override
+            public void on(ValueArgument a) throws TiesServiceScopeException {
+                qv.add(a.getValue());
+                qb.append('?');
+            }
+
+            @Override
+            public void on(FieldArgument a) {
+                qb.append('"');
+                qb.append(getNameId("FLD", a.getFieldName()));
+                qb.append('"');
+            }
+
+        };
+    }
+
 }
