@@ -20,28 +20,32 @@ package network.tiesdb.service.scope.api;
 
 import java.util.Map;
 
-public interface TiesServiceScopeAction {
+public interface TiesServiceScopeModification {
 
-    interface TiesValue {
+    interface Entry {
 
-        String getType();
+        interface FieldValue {
 
-        Object get();
+            String getType();
 
-        byte[] getBytes();
+            Object get();
 
-        byte[] getFieldFullRawBytes();
+            byte[] getBytes();
+
+            byte[] getHash();
+
+        }
+
+        String getTablespaceName();
+
+        String getTableName();
+
+        TiesEntryHeader getHeader();
+
+        Map<String, FieldValue> getFieldValues();
 
     }
 
-    String getTablespaceName();
-
-    String getTableName();
-
-    long getEntryVersion();
-
-    byte[] getHeaderRawBytes();
-
-    Map<String, TiesValue> getFieldValues();
+    Entry getEntry();
 
 }

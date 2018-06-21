@@ -35,6 +35,7 @@ import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.exception.TiesException;
 import network.tiesdb.service.api.TiesService;
 import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeImpl;
+import network.tiesdb.service.impl.elassandra.scope.db.TiesSchema;
 import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.transport.api.TiesTransport;
 import network.tiesdb.transport.api.TiesTransportDaemon;
@@ -93,6 +94,10 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
         initTransportDaemons();
     }
 
+    private void checkDatabaseStructures() throws TiesConfigurationException {
+        TiesSchema.check();
+    }
+
     protected void initTransportDaemons() throws TiesConfigurationException {
         logger.trace("Creating TiesDB Service Transport Daemons...");
         List<TiesTransportConfig> transportsConfigs = config.getTransportConfigs();
@@ -130,6 +135,10 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
 
     private void runInternal() throws TiesException {
         migrationListener.registerMigrationListener();
+
+        logger.trace("Checking TiesDB Structures...");
+        checkDatabaseStructures();
+
         logger.trace("Starting TiesDB Service Transports...");
         List<TiesTransport> transports = transportsRef.get();
         if (null == transports) {

@@ -18,6 +18,10 @@
  */
 package network.tiesdb.handler.impl.v0r0;
 
+import static com.tiesdb.protocol.v0r0.ebml.TiesDBType.ERROR;
+import static com.tiesdb.protocol.v0r0.ebml.TiesDBType.ERROR_MESSAGE;
+import static com.tiesdb.protocol.v0r0.ebml.TiesDBType.MESSAGE_ID;
+
 import java.util.Collection;
 
 import org.slf4j.Logger;
@@ -34,7 +38,6 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.EventState;
-import com.tiesdb.protocol.v0r0.ebml.TiesDBType;
 import com.tiesdb.protocol.v0r0.reader.RequestReader;
 import com.tiesdb.protocol.v0r0.writer.ResponseWriter;
 
@@ -43,11 +46,15 @@ import network.tiesdb.context.api.TiesHandlerConfig;
 import network.tiesdb.exception.TiesException;
 import network.tiesdb.handler.api.TiesHandler;
 import network.tiesdb.handler.impl.v0r0.controller.RequestController;
+import network.tiesdb.handler.impl.v0r0.controller.ResponseController;
+import network.tiesdb.handler.impl.v0r0.exception.TiesDBProtocolMessageException;
+import network.tiesdb.handler.impl.v0r0.util.EBMLHelper;
 import network.tiesdb.handler.impl.v0r0.util.StreamInput;
 import network.tiesdb.handler.impl.v0r0.util.StreamOutput;
 import network.tiesdb.service.api.TiesService;
 import network.tiesdb.transport.api.TiesRequest;
 import network.tiesdb.transport.api.TiesResponse;
+import one.utopic.sparse.ebml.format.BigIntegerFormat;
 import one.utopic.sparse.ebml.format.UTF8StringFormat;
 
 /**
@@ -84,7 +91,7 @@ public class TiesHandlerImpl implements TiesHandler, TiesDBProtocolHandler<TiesD
             throw new RuntimeException("No TiesDBProtocols found");
         }
 
-        this.requestController = new RequestController(service, new RequestReader(), new ResponseWriter());
+        this.requestController = new RequestController(service, new RequestReader(), new ResponseController(new ResponseWriter()));
     };
 
     @Override
@@ -121,13 +128,7 @@ public class TiesHandlerImpl implements TiesHandler, TiesDBProtocolHandler<TiesD
             requestController.handle(session);
         } catch (Exception e) {
             LOG.debug("Handle exception", e);
-            session.accept(new Event(TiesDBType.ERROR, EventState.BEGIN));
-            for (Throwable th = e; null != th; th = th.getCause()) {
-                session.accept(new Event(TiesDBType.ERROR_MESSAGE, EventState.BEGIN));
-                session.write(UTF8StringFormat.INSTANCE, th.getClass().getSimpleName() + ": " + th.getMessage());
-                session.accept(new Event(TiesDBType.ERROR_MESSAGE, EventState.END));
-            }
-            session.accept(new Event(TiesDBType.ERROR, EventState.END));
+            EBMLHelper.writeError(session, e);
         }
     }
 

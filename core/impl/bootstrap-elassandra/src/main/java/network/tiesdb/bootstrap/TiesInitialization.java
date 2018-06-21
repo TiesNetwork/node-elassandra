@@ -49,6 +49,7 @@ public class TiesInitialization implements Runnable {
     public void run() {
         logger.trace("Starting TiesDB boot sequence...");
         try {
+            Thread.sleep(1000); // FIXME!!! remove delay and add event trigger
             initialize();
         } catch (TiesStartupException e) {
             logger.error("An unrecoverable error occurred during the TiesDB initialization process", e);

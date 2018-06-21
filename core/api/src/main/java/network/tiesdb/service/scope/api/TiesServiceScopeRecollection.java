@@ -20,7 +20,7 @@ package network.tiesdb.service.scope.api;
 
 import java.util.List;
 
-public interface TiesServiceScopeQuery {
+public interface TiesServiceScopeRecollection {
 
     interface Query {
 
@@ -50,34 +50,34 @@ public interface TiesServiceScopeQuery {
 
         interface Function {
 
-            interface FunctionArgument extends Function, Argument {
-
-                @Override
-                default void accept(Visitor v) throws TiesServiceScopeException {
-                    v.on(this);
-                }
-
-            }
-
-            interface FieldArgument extends Field, Argument {
-
-                @Override
-                default void accept(Visitor v) throws TiesServiceScopeException {
-                    v.on(this);
-                }
-
-            }
-
-            interface ValueArgument extends Value, Argument {
-
-                @Override
-                default void accept(Visitor v) throws TiesServiceScopeException {
-                    v.on(this);
-                }
-
-            }
-
             interface Argument {
+
+                interface FunctionArgument extends Function, Argument {
+
+                    @Override
+                    default void accept(Visitor v) throws TiesServiceScopeException {
+                        v.on(this);
+                    }
+
+                }
+
+                interface FieldArgument extends Field, Argument {
+
+                    @Override
+                    default void accept(Visitor v) throws TiesServiceScopeException {
+                        v.on(this);
+                    }
+
+                }
+
+                interface ValueArgument extends Value, Argument {
+
+                    @Override
+                    default void accept(Visitor v) throws TiesServiceScopeException {
+                        v.on(this);
+                    }
+
+                }
 
                 interface Visitor {
 
@@ -104,6 +104,8 @@ public interface TiesServiceScopeQuery {
             interface FunctionSelector extends Function, Selector {
 
                 String getAlias();
+
+                String getType();
 
                 @Override
                 default void accept(Visitor v) throws TiesServiceScopeException {
@@ -140,4 +142,56 @@ public interface TiesServiceScopeQuery {
     }
 
     Query getQuery();
+
+    public interface Result {
+
+        interface Field {
+
+            interface HashField extends Field {
+
+                @Override
+                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                    return v.on(this);
+                }
+
+                byte[] getHash();
+
+            }
+
+            interface ValueField extends Field {
+
+                @Override
+                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                    return v.on(this);
+                }
+
+                Object getValue();
+
+            }
+
+            interface Visitor<T> {
+
+                T on(HashField field) throws TiesServiceScopeException;
+
+                T on(ValueField field) throws TiesServiceScopeException;
+
+            }
+
+            <T> T accept(Visitor<T> v) throws TiesServiceScopeException;
+
+            String getName();
+
+            String getType();
+
+        }
+
+        TiesEntryHeader getEntryHeader();
+
+        List<Field> getEntryFields();
+
+        List<Field> getComputedFields();
+
+    }
+
+    void addResult(Result result) throws TiesServiceScopeException;
 }
