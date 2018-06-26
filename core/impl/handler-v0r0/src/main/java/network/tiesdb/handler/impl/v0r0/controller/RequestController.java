@@ -23,12 +23,10 @@ import static java.util.Objects.requireNonNull;
 import java.math.BigInteger;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +36,7 @@ import com.tiesdb.protocol.exception.TiesDBProtocolException;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.Event;
 import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation.EventState;
-import com.tiesdb.protocol.v0r0.ebml.format.UUIDFormat;
+import com.tiesdb.protocol.v0r0.exception.TiesDBProtocolMessageException;
 import com.tiesdb.protocol.v0r0.reader.ComputeRetrieveReader.ComputeRetrieve;
 import com.tiesdb.protocol.v0r0.reader.EntryHeaderReader.EntryHeader;
 import com.tiesdb.protocol.v0r0.reader.FieldReader.Field;
@@ -54,15 +52,14 @@ import com.tiesdb.protocol.v0r0.reader.Reader.Request;
 import com.tiesdb.protocol.v0r0.reader.RecollectionRequestReader.RecollectionRequest;
 import com.tiesdb.protocol.v0r0.reader.RecollectionRequestReader.Retrieve;
 import com.tiesdb.protocol.v0r0.reader.RequestReader;
-import com.tiesdb.protocol.v0r0.writer.ModificationResultErrorWriter.ModificationResultError;
 import com.tiesdb.protocol.v0r0.writer.ModificationResponseWriter.ModificationResponse;
 import com.tiesdb.protocol.v0r0.writer.ModificationResponseWriter.ModificationResult;
+import com.tiesdb.protocol.v0r0.writer.ModificationResultErrorWriter.ModificationResultError;
 import com.tiesdb.protocol.v0r0.writer.ModificationResultSuccessWriter.ModificationResultSuccess;
 import com.tiesdb.protocol.v0r0.writer.RecollectionResponseWriter.RecollectionResponse;
 import com.tiesdb.protocol.v0r0.writer.RecollectionResultWriter.RecollectionResult;
 import com.tiesdb.protocol.v0r0.writer.Writer.Response;
 
-import network.tiesdb.handler.impl.v0r0.exception.TiesDBProtocolMessageException;
 import network.tiesdb.service.api.TiesService;
 import network.tiesdb.service.scope.api.TiesEntryHeader;
 import network.tiesdb.service.scope.api.TiesServiceScope;
@@ -71,18 +68,6 @@ import network.tiesdb.service.scope.api.TiesServiceScopeModification;
 import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Result;
-import network.tiesdb.type.Duration;
-import one.utopic.sparse.ebml.format.ASCIIStringFormat;
-import one.utopic.sparse.ebml.format.BigDecimalFormat;
-import one.utopic.sparse.ebml.format.BigIntegerFormat;
-import one.utopic.sparse.ebml.format.BytesFormat;
-import one.utopic.sparse.ebml.format.DateFormat;
-import one.utopic.sparse.ebml.format.DoubleFormat;
-import one.utopic.sparse.ebml.format.FloatFormat;
-import one.utopic.sparse.ebml.format.IntegerFormat;
-import one.utopic.sparse.ebml.format.LongFormat;
-import one.utopic.sparse.ebml.format.UTF8StringFormat;
 
 public class RequestController implements Request.Visitor<Response> {
 

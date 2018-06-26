@@ -169,9 +169,22 @@ public interface TiesServiceScopeRecollection {
 
             }
 
+            interface RawField extends Field {
+
+                @Override
+                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                    return v.on(this);
+                }
+
+                byte[] getRawValue();
+
+            }
+
             interface Visitor<T> {
 
                 T on(HashField field) throws TiesServiceScopeException;
+
+                T on(RawField field) throws TiesServiceScopeException;
 
                 T on(ValueField field) throws TiesServiceScopeException;
 

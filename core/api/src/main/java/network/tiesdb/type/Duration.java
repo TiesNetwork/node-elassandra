@@ -34,26 +34,26 @@ public class Duration {
         return value;
     }
 
-    public BigInteger getInInteger() {
-        return value.abs().toBigIntegerExact();
-    }
-
     public BigDecimal getDecimal(DurationUnit unit) {
-        return value.divide(unit.getValue(), RoundingMode.HALF_DOWN);
+        return getDecimal(unit, RoundingMode.HALF_DOWN);
     }
 
-    public BigInteger getInteger(DurationUnit unit) {
-        return getDecimal(unit).toBigInteger();
+    public BigDecimal getDecimal(DurationUnit unit, RoundingMode round) {
+        return value.divide(unit.getValue(), round);
     }
 
     public BigDecimal getPartDecimal(DurationUnit unit, DurationUnit per) {
+        return getPartDecimal(unit, per, RoundingMode.HALF_DOWN);
+    }
+
+    public BigDecimal getPartDecimal(DurationUnit unit, DurationUnit per, RoundingMode round) {
         switch (unit.getValue().compareTo(per.getValue())) {
         case 0:
             return BigDecimal.ONE;
         case 1:
             return BigDecimal.ZERO;
         default:
-            return value.divideAndRemainder(per.getValue())[1].divide(unit.getValue(), RoundingMode.HALF_DOWN);
+            return value.divideAndRemainder(per.getValue())[1].divide(unit.getValue(), round);
         }
     }
 

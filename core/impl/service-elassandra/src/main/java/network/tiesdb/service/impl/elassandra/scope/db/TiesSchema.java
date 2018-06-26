@@ -18,8 +18,6 @@
  */
 package network.tiesdb.service.impl.elassandra.scope.db;
 
-import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -32,6 +30,7 @@ import org.apache.cassandra.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.util.internal.shaded.org.jctools.queues.MessagePassingQueue.Consumer;
 import network.tiesdb.exception.TiesConfigurationException;
 
 public final class TiesSchema {
@@ -163,8 +162,7 @@ public final class TiesSchema {
         LOG.debug("Cassandra StorageService is ready");
     }
 
-    public static List<FieldDescription> getFieldDescriptions(String tablespaceName, String tableName) {
-        List<FieldDescription> fields = new LinkedList<>();
+    public static void loadFieldDescriptions(String tablespaceName, String tableName, Consumer<FieldDescription> c) {
         UntypedResultSet result = QueryProcessor.execute(//
                 "select " + SCHEMA_FIELD_NAME + ", " + SCHEMA_FIELD_TYPE//
                         + " from " + KEYSPACE + "." + TABLE//
@@ -175,9 +173,8 @@ public final class TiesSchema {
                         tablespaceName, //
                         tableName });
         for (UntypedResultSet.Row row : result) {
-            fields.add(new FieldDescription(row.getString(SCHEMA_FIELD_NAME), row.getString(SCHEMA_FIELD_TYPE)));
+            c.accept(new FieldDescription(row.getString(SCHEMA_FIELD_NAME), row.getString(SCHEMA_FIELD_TYPE)));
         }
-        return fields;
     }
 
 }

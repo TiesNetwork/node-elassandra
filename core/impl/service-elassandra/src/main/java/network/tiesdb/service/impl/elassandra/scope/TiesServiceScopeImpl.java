@@ -20,12 +20,9 @@ package network.tiesdb.service.impl.elassandra.scope;
 
 import static java.util.Objects.requireNonNull;
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchema.ENTRY_HEADER;
-import static network.tiesdb.type.Duration.DurationTimeUnit.DAY;
-import static network.tiesdb.type.Duration.DurationTimeUnit.NANOSECOND;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -35,7 +32,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.xml.bind.DatatypeConverter;
 
@@ -51,12 +48,10 @@ import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,9 +63,11 @@ import com.tiesdb.lib.crypto.encoder.api.Encoder;
 import network.tiesdb.api.TiesVersion;
 import network.tiesdb.service.api.TiesService;
 import network.tiesdb.service.impl.elassandra.scope.db.ByteArrayType;
+import network.tiesdb.service.impl.elassandra.scope.db.CassandraTypeHelper;
 import network.tiesdb.service.impl.elassandra.scope.db.TiesSchema;
 import network.tiesdb.service.impl.elassandra.scope.db.TiesSchema.FieldDescription;
 import network.tiesdb.service.impl.elassandra.scope.db.TiesSchema.HeaderField;
+import network.tiesdb.service.impl.elassandra.scope.db.TiesTypeHelper;
 import network.tiesdb.service.scope.api.TiesEntryHeader;
 import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
@@ -83,30 +80,12 @@ import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Funct
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Function.Argument;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Selector;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Result;
-import network.tiesdb.type.Duration;
-import network.tiesdb.type.Duration.DurationUnit;
 
 public class TiesServiceScopeImpl implements TiesServiceScope {
 
     private static final Logger LOG = LoggerFactory.getLogger(TiesServiceScopeImpl.class);
 
     private static final Encoder NAME_ENCODER = EncoderManager.getEncoder(EncoderManager.BASE32_NP);
-
-    private static final BigDecimal MONTH_DURATION_VALUE = BigDecimal.valueOf(60 * 60 * 24 * 31, 0); // Standard month
-                                                                                                     // is 31 day
-    private static final DurationUnit MONTH = new DurationUnit() {
-
-        @Override
-        public BigDecimal getValue() {
-            return MONTH_DURATION_VALUE;
-        }
-
-        @Override
-        public String getName() {
-            return "MONTH";
-        }
-
-    };
 
     private static abstract class ResultField implements Result.Field {
 
@@ -142,6 +121,32 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             return value;
         }
 
+        @Override
+        public String toString() {
+            return "ResultValueField [name=" + getName() + ", type=" + getType() + ", value=" + value + "]";
+        }
+
+    }
+
+    private static class ResultRawField extends ResultField implements Result.Field.RawField {
+
+        private final byte[] rawValue;
+
+        public ResultRawField(FieldDescription dsc, byte[] rawValue) {
+            super(dsc);
+            this.rawValue = rawValue;
+        }
+
+        @Override
+        public byte[] getRawValue() {
+            return rawValue;
+        }
+
+        @Override
+        public String toString() {
+            return "ResultRawField [name=" + getName() + ", type=" + getType() + ", rawValue=" + rawValue + "]";
+        }
+
     }
 
     private static class ResultHashField extends ResultField implements Result.Field.HashField {
@@ -156,6 +161,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         @Override
         public byte[] getHash() {
             return hash.array();
+        }
+
+        @Override
+        public String toString() {
+            return "ResultHashField [name=" + getName() + ", type=" + getType() + ", hash=" + DatatypeConverter.printHexBinary(getHash())
+                    + "]";
         }
 
     }
@@ -218,73 +229,6 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         return sb.substring(delim.length());
     }
 
-    private static Object formatToCassandraType(Object value, AbstractType<?> cType) throws TiesServiceScopeException {
-
-        if (null == value) {
-            LOG.debug("Entry.FieldValue null", value);
-            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        }
-
-        LOG.debug("Entry.FieldValue {} ({})", value, value.getClass());
-
-        Class<?> type = requireNonNull(requireNonNull(cType).getSerializer()).getType();
-        if (type.isAssignableFrom(value.getClass())) {
-            return value;
-        }
-
-        LOG.debug("Type mapping {} to {}", value.getClass(), type);
-
-        if (type.equals(org.apache.cassandra.cql3.Duration.class)) {
-            if (value instanceof Duration) {
-                Duration duration = ((Duration) value);
-                return org.apache.cassandra.cql3.Duration.newInstance(//
-                        duration.getInteger(MONTH).intValueExact(), //
-                        duration.getPartInteger(DAY, MONTH).intValueExact(), //
-                        duration.getPartInteger(NANOSECOND, DAY).longValueExact() //
-                );
-            }
-        } else if (type.equals(java.nio.ByteBuffer.class)) {
-            if (value instanceof byte[]) {
-                return java.nio.ByteBuffer.wrap((byte[]) value);
-            }
-        }
-
-        throw new TiesServiceScopeException("Type mapping " + value.getClass() + " to " + type + " failed.");
-    }
-
-    private static Object formatFromCassandraType(Row row, String column, String type) throws TiesServiceScopeException {
-        switch (type) {
-        case "int":
-        case "integer":
-            return row.getInt(column);
-        case "long":
-            return row.getLong(column);
-        case "float":
-            return row.getFloat(column);
-        case "double":
-            return row.getDouble(column);
-        case "decimal":
-            return DecimalType.instance.compose(row.getBlob(column));
-        case "bigint":
-            return IntegerType.instance.compose(row.getBlob(column));
-        case "string":
-        case "ascii":
-            return row.getString(column);
-        case "binary":
-            return row.getBytes(column).array();
-        case "time":
-            return row.getTimestamp(column);
-        case "uuid":
-            return row.getUUID(column);
-        case "boolean":
-            return row.getBoolean(column);
-        case "duration":
-            return new Duration(DecimalType.instance.compose(row.getBlob(column)));
-        default:
-            throw new TiesServiceScopeException("Unknown type " + type);
-        }
-    }
-
     private static void addHeader(TiesEntryHeader tiesEntryHeader, List<String> fieldNames, List<Object> fieldValues, CFMetaData cfMetaData)
             throws TiesServiceScopeException {
         fieldNames.add(ENTRY_HEADER);
@@ -300,7 +244,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         for (int i = 0; i < type.size(); i++) {
             @SuppressWarnings("unchecked")
             AbstractType<Object> fieldType = (AbstractType<Object>) type.fieldType(i);
-            Object fieldFormattedValue = formatToCassandraType(getHeaderField(tiesEntryHeader, type.fieldNameAsString(i)), fieldType);
+            Object fieldFormattedValue = TiesTypeHelper.formatToCassandraType(getHeaderField(tiesEntryHeader, type.fieldNameAsString(i)),
+                    fieldType);
             if (null != fieldFormattedValue) {
                 LOG.debug("FormattedValue {} ({})", fieldFormattedValue, fieldFormattedValue.getClass());
             } else {
@@ -367,6 +312,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
             String fieldNameId = getNameId("FLD", fieldName);
             String fieldHashNameId = getNameId("HSH", fieldName);
+            String fieldValueNameId = getNameId("VAL", fieldName);
 
             Entry.FieldValue fieldValue = actionFields.get(fieldName);
             requireNonNull(fieldValue);
@@ -378,7 +324,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
             }
 
-            Object fieldFormattedValue = formatToCassandraType(fieldValue.get(), columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
+            Object fieldFormattedValue = TiesTypeHelper.formatToCassandraType(fieldValue.get(),
+                    columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
             if (null != fieldFormattedValue) {
                 LOG.debug("FormattedValue {} ({})", fieldFormattedValue, fieldFormattedValue.getClass());
             } else {
@@ -390,6 +337,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             // fieldValues.add(columnType.compose(ByteBuffer.wrap(fieldValue.getBytes())));
             fieldNames.add(fieldHashNameId);
             fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
+            fieldNames.add(fieldValueNameId);
+            fieldValues.add(ByteBuffer.wrap(fieldValue.getBytes()));
         }
         /*
          * String query1 =
@@ -463,6 +412,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
             String fieldNameId = getNameId("FLD", fieldName);
             String fieldHashNameId = getNameId("HSH", fieldName);
+            String fieldValueNameId = getNameId("VAL", fieldName);
 
             Entry.FieldValue fieldValue = actionFields.get(fieldName);
             requireNonNull(fieldValue);
@@ -474,7 +424,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
             }
 
-            Object fieldFormattedValue = formatToCassandraType(fieldValue.get(), columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
+            Object fieldFormattedValue = TiesTypeHelper.formatToCassandraType(fieldValue.get(),
+                    columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
             if (null != fieldFormattedValue) {
                 LOG.debug("FormattedValue {} ({})", fieldFormattedValue, fieldFormattedValue.getClass());
             } else {
@@ -491,6 +442,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 fieldValues.add(fieldFormattedValue);
                 fieldNames.add(fieldHashNameId);
                 fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
+                fieldNames.add(fieldValueNameId);
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getBytes()));
             }
         }
 
@@ -509,7 +462,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         LOG.debug("Update query {}", query);
 
         fieldValues.addAll(keyValues);
-        fieldValues.add(formatToCassandraType(action.getHeader().getEntryOldHash(), BytesType.instance));
+        fieldValues.add(TiesTypeHelper.formatToCassandraType(action.getHeader().getEntryOldHash(), BytesType.instance));
         fieldValues.add(action.getHeader().getEntryVersion().subtract(BigInteger.ONE));
 
         UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ALL, fieldValues.toArray());
@@ -553,61 +506,104 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         List<Object> qv = new LinkedList<>();
         StringBuilder qb = new StringBuilder();
 
-        Argument.Visitor argVisitor = newArgumentVisitor(qv, qb);
+        Argument.Visitor argVisitor = new Argument.Visitor() {
 
-        List<FieldDescription> tiesComputes = new LinkedList<>();
-        Map<String, String> aliasMap = new TreeMap<>();
+            @Override
+            public void on(Argument.FunctionArgument a) throws TiesServiceScopeException {
+                forFunction(this, qb, a);
+            }
 
-        List<FieldDescription> tiesFields = TiesSchema.getFieldDescriptions(request.getTablespaceName(), request.getTableName());
-        if (tiesFields.size() != cfMetaData.allColumns().size() - 1) {
+            @Override
+            public void on(Argument.ValueArgument a) throws TiesServiceScopeException {
+                qv.add(a.getValue());
+                qb.append('?');
+            }
+
+            @Override
+            public void on(Argument.FieldArgument a) {
+                qb.append('"');
+                qb.append(getNameId("FLD", a.getFieldName()));
+                qb.append('"');
+            }
+
+        };
+
+        List<FieldDescription> tiesFields = new LinkedList<>();
+        TiesSchema.loadFieldDescriptions(request.getTablespaceName(), request.getTableName(), tiesFields::add);
+        if (tiesFields.size() * 2 != cfMetaData.allColumns().size() - 1) {
             LOG.warn("Fields count missmatch. TiesDB schema need to be updated.");
             // TODO Do TiesSchema update table metadata
         }
-        Map<String, String> fieldMap = new HashMap<>();
+        Map<FieldDescription, String> fieldMap = new HashMap<>();
 
+        AtomicInteger tiesComputesCounter = new AtomicInteger(0);
+        List<FieldDescription> tiesComputes = new LinkedList<>();
+        Map<FieldDescription, String> aliasMap = new HashMap<>();
+
+        List<Selector> selectors = request.getSelectors();
         qb.append("select ");
         qb.append('"');
         qb.append(ENTRY_HEADER);
         qb.append('"');
         qb.append(',');
-        for (Selector sel : request.getSelectors()) {
-            sel.accept(new Selector.Visitor() {
+        if (!selectors.isEmpty()) {
+            Map<String, String> selectedFields = new HashMap<>();
 
-                @Override
-                public void on(Selector.FunctionSelector s) throws TiesServiceScopeException {
-                    String aliasName = s.getAlias();
-                    aliasName = null != aliasName ? aliasName : s.getName();
-                    String aliasNameId = getNameId("COM", aliasName);
-                    aliasMap.put(aliasName, aliasNameId);
-                    tiesComputes.add(new FieldDescription(aliasName, s.getType()));
-                    forFunction(argVisitor, qb, s);
-                    qb.append(" as \"");
-                    qb.append(aliasNameId);
-                    qb.append('"');
+            for (Selector sel : selectors) {
+                sel.accept(new Selector.Visitor() {
+
+                    @Override
+                    public void on(Selector.FunctionSelector s) throws TiesServiceScopeException {
+                        String aliasName = s.getAlias();
+                        aliasName = null != aliasName ? aliasName : s.getName();
+                        String aliasNameId = "COM" + tiesComputesCounter.incrementAndGet();
+                        FieldDescription fd = new FieldDescription(aliasName, s.getType());
+                        tiesComputes.add(fd);
+                        aliasMap.put(fd, aliasNameId);
+                        forFunction(argVisitor, qb, s);
+                        qb.append(" as \"");
+                        qb.append(aliasNameId);
+                        qb.append('"');
+                    }
+
+                    @Override
+                    public void on(Selector.FieldSelector s) {
+                        String fieldName = s.getFieldName();
+                        String fieldNameId = getNameId("VAL", fieldName);
+                        qb.append('"');
+                        qb.append(fieldNameId);
+                        qb.append('"');
+                        selectedFields.put(fieldName, fieldNameId);
+                    }
+
+                });
+                qb.append(',');
+            }
+            for (FieldDescription field : tiesFields) {
+                String fieldNameId = selectedFields.remove(field.getName());
+                if (null == fieldNameId) {
+                    fieldNameId = getNameId("HSH", field.getName());
                 }
-
-                @Override
-                public void on(Selector.FieldSelector s) {
-                    String fieldName = s.getFieldName();
-                    String fieldNameId = getNameId("FLD", fieldName);
-                    qb.append('"');
-                    qb.append(fieldNameId);
-                    qb.append('"');
-                    fieldMap.put(fieldName, fieldNameId);
-                }
-
-            });
-            qb.append(',');
-        }
-        for (FieldDescription field : tiesFields) {
-            fieldMap.computeIfAbsent(field.getName(), fieldName -> {
-                String hashFieldNameId = getNameId("HSH", fieldName);
                 qb.append('"');
-                qb.append(hashFieldNameId);
+                qb.append(fieldNameId);
                 qb.append('"');
                 qb.append(',');
-                return hashFieldNameId;
-            });
+                fieldMap.put(field, fieldNameId);
+            }
+
+            if (!selectedFields.isEmpty()) {
+                LOG.warn("Select has unmapped fields: {}", selectedFields);
+            }
+
+        } else {
+            for (FieldDescription field : tiesFields) {
+                String fieldNameId = getNameId("VAL", field.getName());
+                qb.append('"');
+                qb.append(fieldNameId);
+                qb.append('"');
+                qb.append(',');
+                fieldMap.put(field, fieldNameId);
+            }
         }
         qb.setLength(qb.length() - 1);
 
@@ -634,7 +630,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         if (LOG.isDebugEnabled()) {
             for (UntypedResultSet.Row row : result) {
                 for (ColumnSpecification col : row.getColumns()) {
-                    LOG.debug("Select result {} = {}", col.name.toString(),
+                    LOG.debug("Select result {}({}) = {}", col.name.toString(), col.type.getClass().getSimpleName().toString(),
                             prettyPrint(col.type.compose(row.getBlob(col.name.toString()))));
                 }
             }
@@ -716,33 +712,50 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     private static Result newResult(Row row, TiesEntryHeader entryHeader, List<FieldDescription> tiesFields,
-            List<FieldDescription> tiesComputes, Map<String, String> fieldMap, Map<String, String> aliasMap)
+            List<FieldDescription> tiesComputes, Map<FieldDescription, String> fieldMap, Map<FieldDescription, String> aliasMap)
             throws TiesServiceScopeException {
 
         List<Result.Field> entryFields = new LinkedList<>();
         List<Result.Field> computedFields = new LinkedList<>();
+        {
 
-        for (FieldDescription fieldDescription : tiesFields) {
-            String fieldNameId = fieldMap.get(fieldDescription.getName());
-            switch (fieldNameId.substring(0, 3)) {
-            case "FLD": {
-                entryFields.add(//
-                        new ResultValueField(fieldDescription, formatFromCassandraType(row, fieldNameId, fieldDescription.getType())));
-                break;
+            for (FieldDescription tiesFieldDescription : tiesFields) {
+                String fieldNameId = fieldMap.get(tiesFieldDescription);
+                switch (fieldNameId.substring(0, 3)) {
+                case "VAL": {
+                    entryFields.add(new ResultRawField(tiesFieldDescription, row.getBlob(fieldNameId).array()));
+                    break;
+                }
+                case "HSH": {
+                    entryFields.add(new ResultHashField(tiesFieldDescription, row.getBytes(fieldNameId)));
+                    break;
+                }
+                default:
+                    throw new TiesServiceScopeException("Unknown field prefix for field " + fieldNameId);
+                }
             }
-            case "HSH": {
-                entryFields.add(new ResultHashField(fieldDescription, row.getBytes(fieldNameId)));
-                break;
+            Map<String, AbstractType<?>> typeMap = new HashMap<>();
+            row.getColumns().stream().filter(c -> c.name.toString().startsWith("COM")).forEach(t -> typeMap.put(t.name.toString(), t.type));
+            for (FieldDescription tiesFieldDescription : tiesComputes) {
+                String fieldNameId = aliasMap.get(tiesFieldDescription);
+                String tiesType = tiesFieldDescription.getType();
+                if (null == tiesType) {
+                    tiesType = CassandraTypeHelper.getTiesTypeByCassandraType(typeMap.get(fieldNameId));
+                    for (ColumnSpecification col : row.getColumns()) {
+                        if (fieldNameId.equals(col.name.toString())) {
+                            if (null == tiesType) {
+                                throw new TiesServiceScopeException(
+                                        "Can't detect type for computed field " + tiesFieldDescription.getName());
+                            }
+                            tiesFieldDescription = new FieldDescription(tiesFieldDescription.getName(), tiesType);
+                            break;
+                        }
+                    }
+                }
+                AbstractType<?> type = typeMap.get(fieldNameId);
+                computedFields.add(new ResultValueField(tiesFieldDescription,
+                        TiesTypeHelper.formatFromCassandraType(row.getBlob(fieldNameId), type, tiesFieldDescription.getType())));
             }
-            default:
-                throw new TiesServiceScopeException("Unknown field prefix for field " + fieldNameId);
-            }
-        }
-
-        for (FieldDescription fieldDescription : tiesComputes) {
-            String fieldNameId = aliasMap.get(fieldDescription.getName());
-            computedFields.add(//
-                    new ResultValueField(fieldDescription, formatFromCassandraType(row, fieldNameId, fieldDescription.getType())));
         }
 
         return new Result() {
@@ -823,30 +836,6 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             forArguments(v, qb, fun.getArguments());
         }
         qb.append(')');
-    }
-
-    private static Argument.Visitor newArgumentVisitor(List<Object> qv, StringBuilder qb) {
-        return new Argument.Visitor() {
-
-            @Override
-            public void on(Argument.FunctionArgument a) throws TiesServiceScopeException {
-                forFunction(this, qb, a);
-            }
-
-            @Override
-            public void on(Argument.ValueArgument a) throws TiesServiceScopeException {
-                qv.add(a.getValue());
-                qb.append('?');
-            }
-
-            @Override
-            public void on(Argument.FieldArgument a) {
-                qb.append('"');
-                qb.append(getNameId("FLD", a.getFieldName()));
-                qb.append('"');
-            }
-
-        };
     }
 
 }

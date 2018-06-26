@@ -22,7 +22,9 @@ import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.util.Date;
 import java.util.Iterator;
-import java.util.stream.Stream;
+import java.util.List;
+
+import javax.xml.bind.DatatypeConverter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +34,9 @@ import com.tiesdb.protocol.v0r0.TiesDBProtocolV0R0.Conversation;
 import com.tiesdb.protocol.v0r0.reader.RecollectionRequestReader.RecollectionRequest;
 import com.tiesdb.protocol.v0r0.writer.EntryHeaderWriter.EntryHeader;
 import com.tiesdb.protocol.v0r0.writer.FieldWriter.Field;
-import com.tiesdb.protocol.v0r0.writer.FieldWriter.Field.*;
+import com.tiesdb.protocol.v0r0.writer.FieldWriter.Field.HashField;
+import com.tiesdb.protocol.v0r0.writer.FieldWriter.Field.ValueField;
+import com.tiesdb.protocol.v0r0.writer.Multiple;
 import com.tiesdb.protocol.v0r0.writer.RecollectionResultWriter.RecollectionResult;
 import com.tiesdb.protocol.v0r0.writer.ResponseWriter;
 import com.tiesdb.protocol.v0r0.writer.Writer.Response;
@@ -41,7 +45,9 @@ import network.tiesdb.handler.impl.v0r0.controller.ControllerUtil.WriteConverter
 import network.tiesdb.service.scope.api.TiesEntryHeader;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Result;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Result.Field.RawField;
 import one.utopic.sparse.ebml.EBMLFormat;
+import one.utopic.sparse.ebml.format.BytesFormat;
 
 public class ResponseController {
 
@@ -109,21 +115,37 @@ public class ResponseController {
             }
         };
 
-        Stream<Field> entryFieldStream = result.getEntryFields().stream().map(this::convertResultField);
-        Iterable<Field> entryFields = new Iterable<Field>() {
-            @Override
-            public Iterator<Field> iterator() {
-                return entryFieldStream.iterator();
-            }
-        };
+        Multiple<Field> entryFields;
+        {
+            List<Result.Field> entryResultFields = result.getEntryFields();
+            entryFields = new Multiple<Field>() {
+                @Override
+                public Iterator<Field> iterator() {
+                    return entryResultFields.stream().map(ResponseController.this::convertResultField).iterator();
+                }
 
-        Stream<Field> computedFieldStream = result.getComputedFields().stream().map(this::convertResultField);
-        Iterable<Field> computedFields = new Iterable<Field>() {
-            @Override
-            public Iterator<Field> iterator() {
-                return computedFieldStream.iterator();
-            }
-        };
+                @Override
+                public boolean isEmpty() {
+                    return entryResultFields.isEmpty();
+                }
+            };
+        }
+
+        Multiple<Field> computedFields;
+        {
+            List<Result.Field> computedResultFields = result.getComputedFields();
+            computedFields = new Multiple<Field>() {
+                @Override
+                public Iterator<Field> iterator() {
+                    return computedResultFields.stream().map(ResponseController.this::convertResultField).iterator();
+                }
+
+                @Override
+                public boolean isEmpty() {
+                    return computedResultFields.isEmpty();
+                }
+            };
+        }
         return new RecollectionResult() {
 
             @Override
@@ -132,12 +154,12 @@ public class ResponseController {
             }
 
             @Override
-            public Iterable<Field> getEntryFields() {
+            public Multiple<Field> getEntryFields() {
                 return entryFields;
             }
 
             @Override
-            public Iterable<Field> getComputedFields() {
+            public Multiple<Field> getComputedFields() {
                 return computedFields;
             }
         };
@@ -166,6 +188,12 @@ public class ResponseController {
                             return field.getHash();
                         }
 
+                        @Override
+                        public String toString() {
+                            return "HashField [name=" + getName() + ", type=" + getType() + ", hash="
+                                    + DatatypeConverter.printHexBinary(getHash()) + "]";
+                        }
+
                     };
                 }
 
@@ -175,7 +203,7 @@ public class ResponseController {
                     @SuppressWarnings("unchecked")
                     WriteConverter<Object> wc = (WriteConverter<Object>) ControllerUtil.writeConverterForType(field.getType());
 
-                    return new ValueField() {
+                    return new ValueField<Object>() {
 
                         @Override
                         public String getName() {
@@ -197,28 +225,74 @@ public class ResponseController {
                             return wc.convert(field.getValue());
                         }
 
+                        @Override
+                        public String toString() {
+                            return "ValueField [name=" + getName() + ", type=" + getType() + ", value=" + getValue() + "]";
+                        }
+
                     };
+                }
+
+                @Override
+                public Field on(RawField field) throws TiesServiceScopeException {
+
+                    return new ValueField<byte[]>() {
+
+                        @Override
+                        public String getName() {
+                            return field.getName();
+                        }
+
+                        @Override
+                        public String getType() {
+                            return field.getType();
+                        }
+
+                        @Override
+                        public EBMLFormat<byte[]> getFormat() {
+                            return BytesFormat.INSTANCE;
+                        }
+
+                        @Override
+                        public byte[] getValue() {
+                            return field.getRawValue();
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "ValueField [name=" + getName() + ", type=" + getType() + ", value=" + getValue() + "]";
+                        }
+
+                    };
+
                 }
 
             });
         } catch (Exception e) {
-            LOG.error("Can't convert field {}", f);
+            LOG.error("Can't convert field {}", f, e);
             // FIXME Implement more robust error handling
             return new HashField() {
 
                 @Override
                 public String getName() {
-                    return "ERROR(" + f.getName() + ")";
+                    return f.getName();
                 }
 
                 @Override
                 public String getType() {
-                    return f.getType();
+                    return "error";
                 }
 
                 @Override
                 public byte[] getHash() {
-                    return e.getMessage().getBytes(DEFAULT_CHARSET);
+                    String message = e.getMessage();
+                    return null == message ? new byte[0] : message.getBytes(DEFAULT_CHARSET);
+                }
+
+                @Override
+                public String toString() {
+                    return "HashField [name=" + getName() + ", type=" + getType() + ", hash=" + DatatypeConverter.printHexBinary(getHash())
+                            + "]";
                 }
 
             };
