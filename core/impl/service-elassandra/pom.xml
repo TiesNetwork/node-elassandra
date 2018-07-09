@@ -35,13 +35,12 @@
 	<name>TiesDB Service Elassandra</name>
 	<description>TiesDB Service implementation with Elassandra backend</description>
 
-	<licenses>
-		<license>
-			<name>The Apache Software License, Version 2.0</name>
-			<url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-			<distribution>repo</distribution>
-		</license>
-	</licenses>
+    <licenses>
+        <license>
+            <name>GNU Lesser General Public License, Version 3.0</name>
+            <url>http://www.gnu.org/licenses/lgpl-3.0.txt</url>
+        </license>
+    </licenses>
 
 	<dependencies>
         <dependency>
@@ -52,12 +51,10 @@
 		<dependency>
 			<groupId>com.tiesdb</groupId>
 			<artifactId>core-api</artifactId>
-			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.tiesdb</groupId>
 			<artifactId>swissknife</artifactId>
-			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>

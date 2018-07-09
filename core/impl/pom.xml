@@ -45,6 +45,21 @@
         </license>
     </licenses>
 
+    <dependencyManagement>
+    	<dependencies>
+	        <dependency>
+	            <groupId>com.tiesdb</groupId>
+	            <artifactId>core-api</artifactId>
+	            <version>${project.version}</version>
+	        </dependency>
+	        <dependency>
+	            <groupId>com.tiesdb</groupId>
+	            <artifactId>swissknife</artifactId>
+	            <version>${project.version}</version>
+	        </dependency>
+    	</dependencies>
+    </dependencyManagement>
+
     <modules>
         <module>context-yaml</module>
         <!-- <module>handler-json</module> -->
@@ -53,5 +68,4 @@
         <module>service-elassandra</module>
         <module>bootstrap-elassandra</module>
     </modules>
-
 </project>

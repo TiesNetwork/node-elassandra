@@ -43,21 +43,19 @@
     </licenses>
 
 	<dependencies>
-		<dependency>
-			<groupId>com.tiesdb</groupId>
-			<artifactId>core-api</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.tiesdb</groupId>
-			<artifactId>swissknife</artifactId>
-			<version>${project.version}</version>
-		</dependency>
         <dependency>
             <groupId>com.tiesdb.protocol</groupId>
             <artifactId>tiesdb-protocol-v0r0</artifactId>
             <version>0.1.0-SNAPSHOT</version>
         </dependency>
+		<dependency>
+			<groupId>com.tiesdb</groupId>
+			<artifactId>core-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.tiesdb</groupId>
+			<artifactId>swissknife</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
