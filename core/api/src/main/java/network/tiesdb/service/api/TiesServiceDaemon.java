@@ -18,8 +18,8 @@
  */
 package network.tiesdb.service.api;
 
+import network.tiesdb.api.TiesDaemon;
 import network.tiesdb.exception.TiesConfigurationException;
-import network.tiesdb.exception.TiesException;
 
 /**
  * TiesDB service daemon API.
@@ -29,15 +29,9 @@ import network.tiesdb.exception.TiesException;
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public interface TiesServiceDaemon {
+public interface TiesServiceDaemon extends TiesDaemon {
 
     String getName();
-
-    void start() throws TiesException;
-
-    void stop() throws TiesException;
-
-    void init() throws TiesException;
 
     TiesService getService() throws TiesConfigurationException;
 }

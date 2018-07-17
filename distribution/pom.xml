@@ -59,8 +59,18 @@
         </dependency>
         <dependency>
             <groupId>com.tiesdb</groupId>
+            <artifactId>schema-ethereum</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tiesdb</groupId>
             <artifactId>bootstrap-elassandra</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.strapdata.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 

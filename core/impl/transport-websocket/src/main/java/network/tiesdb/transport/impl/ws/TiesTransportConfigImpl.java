@@ -36,7 +36,7 @@ import network.tiesdb.transport.impl.ws.TiesTransportFactoryImpl;
 public class TiesTransportConfigImpl implements TiesTransportConfig {
 
     static final String BINDING = "network.tiesdb.transport.WebSocket";
-    static final String SHORT_BINDING = "WebSocketTransport";
+    static final String SHORT_BINDING = "TransportWebSocket";
 
     public static class TransportSecurityConfig {
 

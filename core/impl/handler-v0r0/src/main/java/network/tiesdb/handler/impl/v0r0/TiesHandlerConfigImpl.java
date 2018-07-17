@@ -29,7 +29,7 @@ import network.tiesdb.context.api.annotation.TiesConfigElement;
 @TiesConfigElement({ TiesHandlerConfigImpl.BINDING, TiesHandlerConfigImpl.SHORT_BINDING })
 public class TiesHandlerConfigImpl implements TiesHandlerConfig {
 
-    static final String BINDING = "network.tiesdb.service.HandlerV0R0";
+    static final String BINDING = "network.tiesdb.handler.V0R0";
     static final String SHORT_BINDING = "HandlerV0R0";
 
     public TiesHandlerConfigImpl() {

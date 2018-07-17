@@ -66,6 +66,7 @@
         <module>handler-v0r0</module>
         <module>transport-websocket</module>
         <module>service-elassandra</module>
+        <module>schema-ethereum</module>
         <module>bootstrap-elassandra</module>
     </modules>
 </project>

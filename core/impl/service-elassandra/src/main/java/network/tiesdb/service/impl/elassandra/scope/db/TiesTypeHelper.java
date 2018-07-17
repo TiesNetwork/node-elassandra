@@ -166,4 +166,38 @@ public final class TiesTypeHelper {
         return javaType.cast(type.compose(data));
     }
 
+    public static Object mapToCassandraType(String tiesType) throws IllegalArgumentException {
+        requireNonNull(tiesType);
+        switch (tiesType.toLowerCase()) {
+        case "integer":
+            return "int";
+        case "long":
+            return "bigint";
+        case "float":
+            return "float";
+        case "double":
+            return "double";
+        case "decimal":
+            return "decimal";
+        case "bigint":
+            return "varint";
+        case "ascii":
+            return "ascii";
+        case "string":
+            return "text";
+        case "time":
+            return "timestamp";
+        case "binary":
+            return "blob";
+        case "uuid":
+            return "uuid";
+        case "boolean":
+            return "boolean";
+        case "duration":
+            return "duration";
+        default:
+            throw new IllegalArgumentException("Unknown TiesDB type " + tiesType);
+        }
+    }
+
 }

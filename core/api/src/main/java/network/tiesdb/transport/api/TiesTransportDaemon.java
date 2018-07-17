@@ -18,6 +18,7 @@
  */
 package network.tiesdb.transport.api;
 
+import network.tiesdb.api.TiesDaemon;
 import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.exception.TiesException;
 
@@ -29,13 +30,8 @@ import network.tiesdb.exception.TiesException;
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public interface TiesTransportDaemon {
-
-    void start() throws TiesException;
-
-    void stop() throws TiesException;
-
-    void init() throws TiesException;
+public interface TiesTransportDaemon extends TiesDaemon {
 
     TiesTransport getTiesTransport() throws TiesConfigurationException;
+
 }

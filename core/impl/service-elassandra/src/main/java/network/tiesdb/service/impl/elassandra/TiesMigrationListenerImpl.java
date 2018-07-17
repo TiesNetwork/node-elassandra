@@ -41,13 +41,17 @@ public class TiesMigrationListenerImpl extends MigrationListener {
 
     @Override
     public void onCreateKeyspace(String ksName) {
-        logger.debug("TiesDB keyspace created {}", ksName);
+        if (ksName.startsWith("TIE")) {
+            logger.debug("TiesDB keyspace created {}", ksName);
+        }
         super.onCreateKeyspace(ksName);
     }
 
     @Override
     public void onDropKeyspace(String ksName) {
-        logger.debug("TiesDB keyspace removed {}", ksName);
+        if (ksName.startsWith("TIE")) {
+            logger.debug("TiesDB keyspace removed {}", ksName);
+        }
         super.onDropKeyspace(ksName);
     }
 

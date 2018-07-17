@@ -19,13 +19,12 @@
 package network.tiesdb.service.impl.elassandra.scope;
 
 import static java.util.Objects.requireNonNull;
-import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchema.ENTRY_HEADER;
+import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.ENTRY_HEADER;
+import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.getNameId;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -34,6 +33,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import javax.xml.bind.DatatypeConverter;
 
@@ -56,18 +56,13 @@ import org.apache.cassandra.db.marshal.UserType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.tiesdb.lib.crypto.digest.DigestManager;
-import com.tiesdb.lib.crypto.digest.api.Digest;
-import com.tiesdb.lib.crypto.encoder.EncoderManager;
-import com.tiesdb.lib.crypto.encoder.api.Encoder;
-
 import network.tiesdb.api.TiesVersion;
-import network.tiesdb.service.api.TiesService;
+import network.tiesdb.service.impl.elassandra.TiesServiceImpl;
 import network.tiesdb.service.impl.elassandra.scope.db.ByteArrayType;
 import network.tiesdb.service.impl.elassandra.scope.db.CassandraTypeHelper;
-import network.tiesdb.service.impl.elassandra.scope.db.TiesSchema;
-import network.tiesdb.service.impl.elassandra.scope.db.TiesSchema.FieldDescription;
-import network.tiesdb.service.impl.elassandra.scope.db.TiesSchema.HeaderField;
+import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil;
+import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.FieldDescription;
+import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.HeaderField;
 import network.tiesdb.service.impl.elassandra.scope.db.TiesTypeHelper;
 import network.tiesdb.service.scope.api.TiesEntryHeader;
 import network.tiesdb.service.scope.api.TiesServiceScope;
@@ -85,8 +80,6 @@ import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Result;
 public class TiesServiceScopeImpl implements TiesServiceScope {
 
     private static final Logger LOG = LoggerFactory.getLogger(TiesServiceScopeImpl.class);
-
-    private static final Encoder NAME_ENCODER = EncoderManager.getEncoder(EncoderManager.BASE32_NP);
 
     private static abstract class ResultField implements Result.Field {
 
@@ -172,9 +165,14 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
     }
 
-    private final TiesService service;
+    @FunctionalInterface
+    private interface Initializer<E extends Throwable> {
+        void init() throws E;
+    }
 
-    public TiesServiceScopeImpl(TiesService service) {
+    private final TiesServiceImpl service;
+
+    public TiesServiceScopeImpl(TiesServiceImpl service) {
         this.service = service;
         LOG.debug(this + " is opened");
     }
@@ -187,19 +185,6 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     @Override
     public TiesVersion getServiceVersion() {
         return service.getVersion();
-    }
-
-    private static String getNameId(String prefix, String name) {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Digest digest = DigestManager.getDigest(DigestManager.KECCAK_224);
-            digest.update(name.getBytes(Charset.forName("UTF-8")));
-            byte[] nameHash = new byte[digest.getDigestSize()];
-            digest.doFinal(nameHash, 0);
-            NAME_ENCODER.encode(nameHash, b -> baos.write(b));
-            return prefix + baos.toString();
-        } catch (IOException e) {
-            return null;
-        }
     }
 
     private static String format(String type, byte[] data) {
@@ -288,6 +273,37 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         }
     }
 
+    @SafeVarargs
+    private static <T, E extends Throwable> T retry(Supplier<T> supplier, Initializer<E>... initializer) throws E {
+        T result = supplier.get();
+        if (null == result) {
+            for (int i = 0; i < initializer.length; i++) {
+                initializer[i].init();
+                result = supplier.get();
+                if (null != result) {
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    private void refreshSchema(String tablespaceName, String tableName) {
+        try {
+            service.getSchemaImpl().refreshSchema(tablespaceName, tableName);
+        } catch (Throwable e) {
+            LOG.warn("Schema `{}`.`{}` refreshing error", tablespaceName, tableName, e);
+        }
+    }
+
+    private void createSchema(String tablespaceName, String tableName) {
+        try {
+            service.getSchemaImpl().createSchema(tablespaceName, tableName);
+        } catch (Throwable e) {
+            LOG.warn("Schema `{}`.`{}` creation error", tablespaceName, tableName, e);
+        }
+    }
+
     @Override
     public void insert(TiesServiceScopeModification modificationRequest) throws TiesServiceScopeException {
 
@@ -300,7 +316,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         String tableNameId = getNameId("TBL", tableName);
         LOG.debug("Mapping table `{}`.`{}` to {}.{}", tablespaceName, tableName, tablespaceNameId, tableNameId);
 
-        CFMetaData cfMetaData = Schema.instance.getCFMetaData(tablespaceNameId, tableNameId);
+        CFMetaData cfMetaData = retry(() -> Schema.instance.getCFMetaData(tablespaceNameId, tableNameId),
+                () -> createSchema(tablespaceName, tableName));
 
         if (null == cfMetaData) {
             throw new TiesServiceScopeException("Table `" + tablespaceName + "`.`" + tableName + "` was not found");
@@ -318,15 +335,17 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             String fieldHashNameId = getNameId("HSH", fieldName);
             String fieldValueNameId = getNameId("VAL", fieldName);
 
+            ColumnDefinition columnDefinition = retry(() -> cfMetaData.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true)),
+                    () -> refreshSchema(tablespaceName, tableName));
+
+            if (null == columnDefinition) {
+                throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
+            }
+
             Entry.FieldValue fieldValue = entryFields.get(fieldName);
             requireNonNull(fieldValue);
             LOG.debug("Field {} ({}) Value ({}) {}", fieldName, fieldNameId, fieldValue.getType(),
                     format(fieldValue.getType(), fieldValue.getBytes()));
-
-            ColumnDefinition columnDefinition = cfMetaData.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true));
-            if (null == columnDefinition) {
-                throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
-            }
 
             Object fieldFormattedValue = TiesTypeHelper.formatToCassandraType(fieldValue.get(),
                     columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
@@ -377,7 +396,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 if (!partKeyColumnsNames.isEmpty()) {
                     LOG.debug("Missing values for {}", partKeyColumnsNames);
                     Map<String, String> emptyNames = new HashMap<>();
-                    TiesSchema.loadFieldDescriptions(tablespaceName, tableName, fd -> {
+                    TiesSchemaUtil.loadFieldDescriptions(tablespaceName, tableName, fd -> {
                         emptyNames.put(getNameId("FLD", fd.getName()), fd.getName());
                     });
                     List<String> missingKeys = new LinkedList<>();
@@ -408,7 +427,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         CFMetaData cfMetaData = Schema.instance.getCFMetaData(tablespaceNameId, tableNameId);
 
         if (null == cfMetaData) {
-            throw new TiesServiceScopeException("Table `" + tablespaceName + "`.`" + tableName + "` was not found");
+            throw new TiesServiceScopeException("Update failed");
         }
 
         Map<String, Entry.FieldValue> entryFields = entry.getFieldValues();
@@ -421,13 +440,25 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             }
         }
 
-        Map<String, String> emptyNames = new HashMap<>();
-        TiesSchema.loadFieldDescriptions(tablespaceName, tableName, fd -> {
-            emptyNames.put(getNameId("FLD", fd.getName()), fd.getName());
-        });
-        if (emptyNames.size() * 2 != cfMetaData.allColumns().size() - 1) {
-            LOG.warn("Fields count missmatch. TiesDB schema need to be updated.");
-            // TODO Do TiesSchema update table metadata
+        Map<String, String> emptyNames;
+        {
+            Collection<ColumnDefinition> columns = cfMetaData.allColumns();
+
+            ArrayList<String> columnNames = new ArrayList<>(columns.size());
+            for (ColumnDefinition c : columns) {
+                columnNames.add(c.name.toString());
+            }
+
+            Map<String, String> names = new HashMap<>();
+            TiesSchemaUtil.loadFieldDescriptions(tablespaceName, tableName, fd -> {
+                names.put(getNameId("FLD", fd.getName()), fd.getName());
+            });
+
+            if (!columnNames.containsAll(names.keySet())) {
+                LOG.warn("Fields count missmatch. TiesDB schema need to be updated.");
+            }
+
+            emptyNames = names;
         }
 
         List<String> keyNames = new ArrayList<>(partKeyColumnsNames.size());
@@ -443,17 +474,17 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             String fieldHashNameId = getNameId("HSH", fieldName);
             String fieldValueNameId = getNameId("VAL", fieldName);
 
+            ColumnDefinition columnDefinition = cfMetaData.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true));
+            if (null == columnDefinition) {
+                throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
+            }
+
             emptyNames.remove(fieldNameId);
 
             Entry.FieldValue fieldValue = entryFields.get(fieldName);
             requireNonNull(fieldValue);
             LOG.debug("Field {} ({}) RawValue ({}) {}", fieldName, fieldNameId, fieldValue.getType(),
                     format(fieldValue.getType(), fieldValue.getBytes()));
-
-            ColumnDefinition columnDefinition = cfMetaData.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true));
-            if (null == columnDefinition) {
-                throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
-            }
 
             Object fieldFormattedValue = TiesTypeHelper.formatToCassandraType(fieldValue.get(),
                     columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
@@ -568,12 +599,30 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         };
 
-        List<FieldDescription> tiesFields = new LinkedList<>();
-        TiesSchema.loadFieldDescriptions(tablespaceName, tableName, tiesFields::add);
-        if (tiesFields.size() * 2 != cfMetaData.allColumns().size() - 1) {
-            LOG.warn("Fields count missmatch. TiesDB schema need to be updated.");
-            // TODO Do TiesSchema update table metadata
+        List<FieldDescription> tiesFields;
+        {
+            Collection<ColumnDefinition> columns = cfMetaData.allColumns();
+
+            ArrayList<String> columnNames = new ArrayList<>(columns.size());
+            for (ColumnDefinition c : columns) {
+                columnNames.add(c.name.toString());
+            }
+
+            List<FieldDescription> fields = new LinkedList<>();
+            TiesSchemaUtil.loadFieldDescriptions(tablespaceName, tableName, fields::add);
+
+            ArrayList<String> fieldNameIds = new ArrayList<>(fields.size());
+            for (FieldDescription fd : fields) {
+                fieldNameIds.add(getNameId("FLD", fd.getName()));
+            }
+
+            if (!columnNames.containsAll(fieldNameIds)) {
+                LOG.warn("Fields count missmatch. TiesDB schema need to be updated.");
+            }
+
+            tiesFields = fields;
         }
+
         Map<FieldDescription, String> fieldMap = new HashMap<>();
 
         AtomicInteger tiesComputesCounter = new AtomicInteger(0);
@@ -663,7 +712,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             qb.setLength(qb.length() - 5);
         }
 
-        System.out.println(qb.toString());
+        LOG.debug("{}", qb);
 
         UntypedResultSet result = QueryProcessor.execute(qb.toString(), ConsistencyLevel.ALL, qv.toArray());
         LOG.debug("Select result {}", result);

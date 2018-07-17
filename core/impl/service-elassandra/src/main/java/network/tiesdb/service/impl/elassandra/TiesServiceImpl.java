@@ -29,13 +29,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import network.tiesdb.api.TiesVersion;
+import network.tiesdb.context.api.TiesSchemaConfig;
 import network.tiesdb.context.api.TiesServiceConfig;
 import network.tiesdb.context.api.TiesTransportConfig;
 import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.exception.TiesException;
+import network.tiesdb.schema.api.TiesSchema;
 import network.tiesdb.service.api.TiesService;
+import network.tiesdb.service.impl.elassandra.schema.TiesServiceSchemaImpl;
 import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeImpl;
-import network.tiesdb.service.impl.elassandra.scope.db.TiesSchema;
+import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil;
 import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.transport.api.TiesTransport;
 import network.tiesdb.transport.api.TiesTransportDaemon;
@@ -56,6 +59,7 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
     protected final String name;
 
     private final AtomicReference<List<TiesTransport>> transportsRef = new AtomicReference<>();
+    private final AtomicReference<TiesServiceSchemaImpl> schemaImplRef = new AtomicReference<>();
     private final TiesMigrationListenerImpl migrationListener;
 
     public TiesServiceImpl(String name, TiesServiceConfig config) {
@@ -69,11 +73,6 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
 
     protected TiesMigrationListenerImpl createTiesMigrationListener() {
         return new TiesMigrationListenerImpl(this);
-    }
-
-    @Override
-    public TiesServiceConfig getTiesServiceConfig() {
-        return config;
     }
 
     public void run() {
@@ -92,10 +91,26 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
 
     protected void initInternal() throws TiesException {
         initTransportDaemons();
+        initTiesSchema();
+    }
+
+    protected void initTiesSchema() throws TiesConfigurationException {
+        logger.trace("Creating TiesDB Schema Connection...");
+        TiesSchemaConfig schemaConfig = config.getSchemaConfig();
+        if (null == schemaConfig) {
+            throw new TiesConfigurationException("No TiesDB Schema configuration found");
+        }
+        TiesSchema schema = schemaConfig.getTiesSchemaFactory().createSchema(this);
+        TiesServiceSchemaImpl schemaImpl = new TiesServiceSchemaImpl(schema);
+        if (!schemaImplRef.compareAndSet(null, schemaImpl)) {
+            throw new TiesConfigurationException("TiesDB Schema have already been initialized");
+        }
+        schemaImpl.init();
     }
 
     private void checkDatabaseStructures() throws TiesConfigurationException {
-        TiesSchema.check();
+        logger.trace("Checking TiesDB Structures...");
+        TiesSchemaUtil.check();
     }
 
     protected void initTransportDaemons() throws TiesConfigurationException {
@@ -117,6 +132,64 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
     }
 
     protected void stopInternal() {
+        stopSchema();
+        stopTiesTransports();
+        migrationListener.unregisterMigrationListener();
+    }
+
+    private void runInternal() throws TiesException {
+        migrationListener.registerMigrationListener();
+        checkDatabaseStructures();
+        startSchema();
+        startTiesTransports();
+    }
+
+    private void startSchema() throws TiesConfigurationException {
+        logger.trace("Starting TiesDB Service Schema...");
+        getSchemaImpl().start();
+    }
+
+    private void stopSchema() {
+        logger.trace("Stopping TiesDB Service Schema...");
+        try {
+            getSchemaImpl().stop();
+        } catch (TiesConfigurationException e) {
+            logger.debug("No TiesDB Service Schema was found");
+        }
+    }
+
+    public TiesServiceSchemaImpl getSchemaImpl() throws TiesConfigurationException {
+        TiesServiceSchemaImpl schemaImpl = schemaImplRef.get();
+        if (null == schemaImpl) {
+            throw new TiesConfigurationException("TiesDB Schema have not been initialized");
+        }
+        return schemaImpl;
+    }
+
+    private void startTiesTransports() throws TiesConfigurationException {
+        logger.trace("Starting TiesDB Service Transports...");
+        List<TiesTransport> transports = transportsRef.get();
+        if (null == transports) {
+            throw new TiesConfigurationException("No TiesDB Service Transports to start");
+        } else {
+            int count = 0;
+            for (TiesTransport tiesTransport : transports) {
+                try {
+                    TiesTransportDaemon daemon = nullsafe(tiesTransport.getDaemon());
+                    daemon.init();
+                    daemon.start();
+                    count++;
+                } catch (Throwable e) {
+                    logger.error("Failed to init and start TiesDB Transport", e);
+                }
+            }
+            if (0 >= count) {
+                throw new TiesConfigurationException("Not a single TiesDB Service Transports has been successfully started");
+            }
+        }
+    }
+
+    private void stopTiesTransports() {
         logger.trace("Stopping TiesDB Service Transports...");
         List<TiesTransport> transports = transportsRef.get();
         if (null == transports) {
@@ -130,41 +203,11 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
                 }
             }
         }
-        migrationListener.unregisterMigrationListener();
-    }
-
-    private void runInternal() throws TiesException {
-        migrationListener.registerMigrationListener();
-
-        logger.trace("Checking TiesDB Structures...");
-        checkDatabaseStructures();
-
-        logger.trace("Starting TiesDB Service Transports...");
-        List<TiesTransport> transports = transportsRef.get();
-        if (null == transports) {
-            logger.trace("No TiesDB Service Transports to start");
-        } else {
-            for (TiesTransport tiesTransport : transports) {
-                try {
-                    TiesTransportDaemon daemon = nullsafe(tiesTransport.getDaemon());
-                    daemon.init();
-                    daemon.start();
-                } catch (Throwable e) {
-                    logger.error("Failed to init and start TiesDB Transport", e);
-                }
-            }
-        }
     }
 
     @Override
     public TiesVersion getVersion() {
         return IMPLEMENTATION_VERSION;
-    }
-
-    @Override
-    public List<TiesTransport> getTransports() {
-        List<TiesTransport> transports = transportsRef.get();
-        return null == transports ? Collections.<TiesTransport>emptyList() : transports;
     }
 
     @Override

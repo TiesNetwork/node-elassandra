@@ -35,6 +35,8 @@ public interface TiesServiceConfig {
     TiesServiceFactory getTiesServiceFactory();
 
     List<TiesTransportConfig> getTransportConfigs();
+    
+    TiesSchemaConfig getSchemaConfig();
 
     Boolean isServiceStopCritical();
 

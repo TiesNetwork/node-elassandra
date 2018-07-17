@@ -20,6 +20,7 @@ package network.tiesdb.service.impl.elassandra;
 
 import java.util.List;
 
+import network.tiesdb.context.api.TiesSchemaConfig;
 import network.tiesdb.context.api.TiesServiceConfig;
 import network.tiesdb.context.api.TiesTransportConfig;
 import network.tiesdb.context.api.annotation.TiesConfigElement;
@@ -33,12 +34,14 @@ import network.tiesdb.service.api.TiesServiceFactory;
 @TiesConfigElement({ TiesServiceConfigImpl.BINDING, TiesServiceConfigImpl.SHORT_BINDING })
 public class TiesServiceConfigImpl implements TiesServiceConfig {
 
-    static final String BINDING = "network.tiesdb.Service";
-    static final String SHORT_BINDING = "TiesService";
+    static final String BINDING = "network.tiesdb.service.TiesDB";
+    static final String SHORT_BINDING = "ServiceTiesDB";
 
     private boolean serviceStopCritical = true;
 
     private List<TiesTransportConfig> transports;
+
+    private TiesSchemaConfig schemaConfig;
 
     public TiesServiceConfigImpl() {
         // NOP Is not empty config values
@@ -70,5 +73,14 @@ public class TiesServiceConfigImpl implements TiesServiceConfig {
 
     public void setTransports(List<TiesTransportConfig> transports) {
         this.transports = transports;
+    }
+
+    public void setSchema(TiesSchemaConfig schema) {
+        this.schemaConfig = schema;
+    }
+
+    @Override
+    public TiesSchemaConfig getSchemaConfig() {
+        return schemaConfig;
     }
 }
