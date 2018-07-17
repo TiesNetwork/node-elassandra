@@ -61,6 +61,12 @@
             <useDefaultExcludes>false</useDefaultExcludes>
             <excludes>
               <exclude>bin/**</exclude>
+              <exclude>lib/slf4j-api-1.7.*.jar</exclude>
+              <exclude>modules/**/asm-5.0.*.jar</exclude>
+              <exclude>modules/**/asm-commons-5.0.*.jar</exclude>
+              <exclude>modules/**/asm-analysis-5.0.*.jar</exclude>
+              <exclude>modules/**/asm-tree-5.0.*.jar</exclude>
+              <exclude>modules/**/asm-util-5.0.*.jar</exclude>
             </excludes>
         </fileSet>
         <fileSet>
