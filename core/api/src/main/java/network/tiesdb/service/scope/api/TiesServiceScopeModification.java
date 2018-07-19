@@ -24,15 +24,19 @@ public interface TiesServiceScopeModification {
 
     interface Entry {
 
-        interface FieldValue {
+        interface FieldHash {
+
+            byte[] getHash();
+
+        }
+
+        interface FieldValue extends FieldHash {
 
             String getType();
 
             Object get();
 
             byte[] getBytes();
-
-            byte[] getHash();
 
         }
 
@@ -41,6 +45,8 @@ public interface TiesServiceScopeModification {
         String getTableName();
 
         TiesEntryHeader getHeader();
+
+        Map<String, FieldHash> getFieldHashes();
 
         Map<String, FieldValue> getFieldValues();
 

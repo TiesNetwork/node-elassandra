@@ -79,13 +79,15 @@ public class RequestController implements Request.Visitor<Response> {
 
         private final ModificationEntry modificationEntry;
         private final Map<String, Entry.FieldValue> fieldValues;
+        private final Map<String, Entry.FieldHash> fieldHashes;
 
         public EntryImpl(ModificationEntry modificationEntry, boolean forInsert) throws TiesServiceScopeException {
             this.modificationEntry = modificationEntry;
-            this.fieldValues = new HashMap<>();
+            Map<String, Entry.FieldValue> fieldValues = new HashMap<>();
+            Map<String, Entry.FieldHash> fieldHashes = new HashMap<>();
             for (Map.Entry<String, Field> e : modificationEntry.getFields().entrySet()) {
-                if (null != e.getValue().getRawValue()) {
-                    Field field = e.getValue();
+                Field field = e.getValue();
+                if (null != field.getRawValue()) {
                     Object fieldValue = deserialize(field);
                     fieldValues.put(e.getKey(), new Entry.FieldValue() {
 
@@ -111,8 +113,17 @@ public class RequestController implements Request.Visitor<Response> {
                     });
                 } else if (forInsert) {
                     throw new TiesServiceScopeException("Insert should have only value fields");
+                } else {
+                    fieldHashes.put(e.getKey(), new Entry.FieldHash() {
+                        @Override
+                        public byte[] getHash() {
+                            return field.getHash();
+                        }
+                    });
                 }
             }
+            this.fieldHashes = fieldHashes;
+            this.fieldValues = fieldValues;
         }
 
         @Override
@@ -123,6 +134,11 @@ public class RequestController implements Request.Visitor<Response> {
         @Override
         public String getTableName() {
             return modificationEntry.getHeader().getTableName();
+        }
+
+        @Override
+        public Map<String, Entry.FieldHash> getFieldHashes() {
+            return fieldHashes;
         }
 
         @Override

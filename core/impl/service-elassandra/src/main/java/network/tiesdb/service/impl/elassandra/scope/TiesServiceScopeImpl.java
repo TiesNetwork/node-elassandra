@@ -69,6 +69,8 @@ import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
 import network.tiesdb.service.scope.api.TiesServiceScopeModification;
 import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry;
+import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry.FieldValue;
+import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry.FieldHash;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Filter;
@@ -430,7 +432,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Update failed");
         }
 
-        Map<String, Entry.FieldValue> entryFields = entry.getFieldValues();
+        Map<String, Entry.FieldValue> entryFieldValues = entry.getFieldValues();
+        Map<String, Entry.FieldHash> entryFieldHashes = entry.getFieldHashes();
         ArrayList<String> partKeyColumnsNames;
         {
             List<ColumnDefinition> partKeyColumns = cfMetaData.partitionKeyColumns();
@@ -463,13 +466,16 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         List<String> keyNames = new ArrayList<>(partKeyColumnsNames.size());
         List<Object> keyValues = new ArrayList<>(keyNames.size());
-        List<String> fieldNames = new ArrayList<>(entryFields.size());
+        List<String> fieldNames = new ArrayList<>(entryFieldValues.size());
         List<Object> fieldValues = new ArrayList<>(fieldNames.size());
+        List<String> hashNames = new ArrayList<>(entryFieldHashes.size());
+        List<Object> hashValues = new ArrayList<>(hashNames.size());
 
         addHeader(entry.getHeader(), fieldNames, fieldValues, cfMetaData);
 
-        for (String fieldName : entryFields.keySet()) {
+        for (Map.Entry<String, FieldValue> entryField : entryFieldValues.entrySet()) {
 
+            String fieldName = entryField.getKey();
             String fieldNameId = getNameId("FLD", fieldName);
             String fieldHashNameId = getNameId("HSH", fieldName);
             String fieldValueNameId = getNameId("VAL", fieldName);
@@ -481,7 +487,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
             emptyNames.remove(fieldNameId);
 
-            Entry.FieldValue fieldValue = entryFields.get(fieldName);
+            Entry.FieldValue fieldValue = entryField.getValue();
             requireNonNull(fieldValue);
             LOG.debug("Field {} ({}) RawValue ({}) {}", fieldName, fieldNameId, fieldValue.getType(),
                     format(fieldValue.getType(), fieldValue.getBytes()));
@@ -509,6 +515,28 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             }
         }
 
+        for (Map.Entry<String, FieldHash> entryField : entryFieldHashes.entrySet()) {
+
+            String fieldName = entryField.getKey();
+            String fieldNameId = getNameId("FLD", fieldName);
+            String fieldHashNameId = getNameId("HSH", fieldName);
+
+            ColumnDefinition columnDefinition = cfMetaData.getColumnDefinition(ColumnIdentifier.getInterned(fieldHashNameId, true));
+            if (null == columnDefinition) {
+                throw new TiesServiceScopeException(
+                        "FieldHash `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
+            }
+
+            emptyNames.remove(fieldNameId);
+
+            Entry.FieldHash fieldHash = entryField.getValue();
+            requireNonNull(fieldHash);
+            LOG.debug("HashField {} ({}) RawHash {}", fieldName, fieldNameId, format("BYTES", fieldHash.getHash()));
+
+            hashNames.add(fieldHashNameId);
+            hashValues.add(ByteBuffer.wrap(fieldHash.getHash()));
+        }
+
         if (!partKeyColumnsNames.isEmpty()) {
             LOG.debug("Missing values for {}", partKeyColumnsNames);
             List<String> missingKeys = new LinkedList<>();
@@ -519,21 +547,25 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         }
 
         String query = String.format(//
-                "UPDATE \"%s\".\"%s\"\n" + //
-                        "SET %s = ?\n" + //
-                        "WHERE %s = ?\n" + //
-                        "IF \"" + ENTRY_HEADER + "\"." + HeaderField.HSH.name().toLowerCase() + " = ? " + //
-                        "AND \"" + ENTRY_HEADER + "\"." + HeaderField.VER.name().toLowerCase() + " = ? " + //
+                "UPDATE \"%s\".\"%s\"" + //
+                        " SET %s = ?" + //
+                        " WHERE %s = ?" + //
+                        " IF \"" + ENTRY_HEADER + "\"." + HeaderField.HSH.name().toLowerCase() + " = ?" + //
+                        " AND \"" + ENTRY_HEADER + "\"." + HeaderField.VER.name().toLowerCase() + " = ?" + //
+                        "%s" + //
                         "%s", //
                 tablespaceNameId, tableNameId, //
                 concat(fieldNames, " = ?, "), //
                 concat(keyNames, " = ? AND "), //
-                (emptyNames.isEmpty() ? "" : String.format("AND %s = NULL", concat(emptyNames.keySet(), " = NULL AND "))));
+                (hashNames.isEmpty() ? "" : String.format(" AND %s = ?", concat(hashNames, " = ? AND "))), //
+                (emptyNames.isEmpty() ? "" : String.format(" AND %s = NULL", concat(emptyNames.keySet(), " = NULL AND ")))//
+        );
         LOG.debug("Update query {}", query);
 
         fieldValues.addAll(keyValues);
         fieldValues.add(TiesTypeHelper.formatToCassandraType(entry.getHeader().getEntryOldHash(), BytesType.instance));
         fieldValues.add(entry.getHeader().getEntryVersion().subtract(BigInteger.ONE));
+        fieldValues.addAll(hashValues);
 
         UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ALL, fieldValues.toArray());
         LOG.debug("Update result {}", result);
