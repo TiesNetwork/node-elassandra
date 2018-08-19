@@ -312,12 +312,12 @@ public final class TiesSchemaUtil {
     private static void awaitStorageService() throws TiesConfigurationException {
         LOG.debug("Waiting for cassandra StorageService");
         try {
-            int count = 300;
+            int count = 600;
             while (!StorageService.instance.isInitialized() && --count > 0) {
                 Thread.sleep(100);
             }
             if (count == 0) {
-                throw new TimeoutException("StorageService has not been ready for 30 seconds");
+                throw new TimeoutException("StorageService has not been ready for 60 seconds");
             }
         } catch (InterruptedException | TimeoutException e) {
             throw new TiesConfigurationException("Await for StorageService failed", e);
