@@ -24,10 +24,13 @@ import java.io.IOException;
 import java.math.BigInteger;
 
 import org.web3j.protocol.Web3j;
+import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.response.EthGasPrice;
+import org.web3j.protocol.core.methods.response.EthGetCode;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.ReadonlyTransactionManager;
 import org.web3j.tx.TransactionManager;
+import org.web3j.utils.Numeric;
 
 import com.tiesdb.schema.impl.SchemaImpl;
 import com.tiesdb.schema.impl.contracts.TiesDB;
@@ -47,7 +50,15 @@ public class TiesSchemaEthereum implements TiesSchema {
         TiesDB contract = TiesDB.load(ethereumConfig.getTiesDBContractAddress(), web3j, tm, gasPrice.getGasPrice(), BigInteger.ZERO);
 
         if (!contract.isValid()) {
-            throw new TiesConfigurationException("Invalid contract address: contract binary missmatch");
+            EthGetCode ethGetCode = web3j.ethGetCode(ethereumConfig.getTiesDBContractAddress(), DefaultBlockParameterName.LATEST).send();
+            if (ethGetCode.hasError()) {
+                throw new TiesConfigurationException("Contract request error: " + ethGetCode.getError());
+            }
+            String code = Numeric.cleanHexPrefix(ethGetCode.getCode()).toUpperCase();
+            String contractCode = Numeric.cleanHexPrefix(contract.getContractBinary()).toUpperCase();
+            throw new TiesConfigurationException("Invalid contract address: contract binary missmatch\n" //
+                    + "    Code: " + code + "\n" //
+                    + "    Was not found in: " + contractCode );
         }
 
         this.contract = contract;
