@@ -20,6 +20,7 @@ package network.tiesdb.service.impl.elassandra.scope;
 
 import static java.util.Objects.requireNonNull;
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.ENTRY_HEADER;
+import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.ENTRY_VERSION;
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.getNameId;
 
 import java.io.IOException;
@@ -29,11 +30,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 
 import javax.xml.bind.DatatypeConverter;
 
@@ -168,8 +170,40 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @FunctionalInterface
-    private interface Initializer<E extends Throwable> {
-        void init() throws E;
+    static interface CheckedAction<E extends Throwable> {
+
+        void act() throws E;
+
+    }
+
+    @FunctionalInterface
+    static interface CheckedSupplier<T, E extends Throwable> {
+
+        T get() throws E;
+
+        default CheckedSupplier<T, E> butFirst(CheckedAction<? extends E> before) {
+            Objects.requireNonNull(before);
+            return () -> {
+                before.act();
+                return get();
+            };
+        }
+
+        default CheckedSupplier<T, E> andThen(CheckedAction<? extends E> after) {
+            Objects.requireNonNull(after);
+            return () -> {
+                T result = get();
+                after.act();
+                return result;
+            };
+        }
+    }
+
+    @FunctionalInterface
+    private static interface CheckedPredicate<T, E extends Throwable> {
+
+        boolean test(T t) throws E;
+
     }
 
     private final TiesServiceImpl service;
@@ -245,6 +279,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             components[i] = fieldType.decompose(fieldFormattedValue);
         }
         fieldValues.add(UserType.buildValue(components));
+
+        // Add entry version
+        fieldNames.add(ENTRY_VERSION);
+        fieldValues.add(tiesEntryHeader.getEntryVersion());
     }
 
     private static Object getHeaderField(TiesEntryHeader h, String name) throws TiesServiceScopeException {
@@ -253,8 +291,6 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             switch (headerField) {
             case TIM:
                 return h.getEntryTimestamp();
-            case VER:
-                return h.getEntryVersion();
             case OHS:
                 return h.getEntryOldHash();
             case FHS:
@@ -276,15 +312,17 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @SafeVarargs
-    private static <T, E extends Throwable> T retry(Supplier<T> supplier, Initializer<E>... initializer) throws E {
-        T result = supplier.get();
-        if (null == result) {
-            for (int i = 0; i < initializer.length; i++) {
-                initializer[i].init();
-                result = supplier.get();
-                if (null != result) {
-                    break;
-                }
+    private static <T, E extends Throwable> T retry(CheckedSupplier<T, E>... suppliers) throws E {
+        return retry((T o) -> null != o, suppliers);
+    }
+
+    @SafeVarargs
+    private static <T, E extends Throwable> T retry(CheckedPredicate<T, E> condition, CheckedSupplier<T, E>... suppliers) throws E {
+        T result = null;
+        for (CheckedSupplier<T, E> supplier : suppliers) {
+            result = supplier.get();
+            if (condition.test(result)) {
+                break;
             }
         }
         return result;
@@ -318,14 +356,30 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         String tableNameId = getNameId("TBL", tableName);
         LOG.debug("Mapping table `{}`.`{}` to {}.{}", tablespaceName, tableName, tablespaceNameId, tableNameId);
 
-        CFMetaData cfMetaData = retry(() -> Schema.instance.getCFMetaData(tablespaceNameId, tableNameId),
-                () -> createSchema(tablespaceName, tableName));
+        CheckedSupplier<CFMetaData, RuntimeException> getSchema = () -> {
+            return Schema.instance.getCFMetaData(tablespaceNameId, tableNameId);
+        };
+        CFMetaData cfMetaData = retry(//
+                getSchema, //
+                getSchema.butFirst(() -> createSchema(tablespaceName, tableName)));
 
         if (null == cfMetaData) {
             throw new TiesServiceScopeException("Table `" + tablespaceName + "`.`" + tableName + "` was not found");
         }
 
         Map<String, Entry.FieldValue> entryFields = entry.getFieldValues();
+
+        ArrayList<String> partKeyColumnsNames;
+        {
+            List<ColumnDefinition> partKeyColumns = cfMetaData.partitionKeyColumns();
+            partKeyColumnsNames = new ArrayList<>(partKeyColumns.size());
+            for (ColumnDefinition columnDefinition : partKeyColumns) {
+                partKeyColumnsNames.add(columnDefinition.name.toString().toUpperCase());
+            }
+        }
+
+        List<String> keyNames = new ArrayList<>(partKeyColumnsNames.size());
+        List<Object> keyValues = new ArrayList<>(keyNames.size());
         List<String> fieldNames = new ArrayList<>(entryFields.size());
         List<Object> fieldValues = new ArrayList<>(entryFields.size());
 
@@ -337,8 +391,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             String fieldHashNameId = getNameId("HSH", fieldName);
             String fieldValueNameId = getNameId("VAL", fieldName);
 
-            ColumnDefinition columnDefinition = retry(() -> cfMetaData.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true)),
-                    () -> refreshSchema(tablespaceName, tableName));
+            CheckedSupplier<ColumnDefinition, RuntimeException> getColumn = () -> {
+                return cfMetaData.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true));
+            };
+            ColumnDefinition columnDefinition = retry( //
+                    getColumn, //
+                    getColumn.butFirst(() -> refreshSchema(tablespaceName, tableName)));
 
             if (null == columnDefinition) {
                 throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
@@ -357,50 +415,100 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 LOG.debug("FormattedValue null");
             }
 
-            fieldNames.add(fieldNameId);
-            fieldValues.add(fieldFormattedValue);
-            // fieldValues.add(columnType.compose(ByteBuffer.wrap(fieldValue.getBytes())));
-            fieldNames.add(fieldHashNameId);
-            fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
-            fieldNames.add(fieldValueNameId);
-            fieldValues.add(ByteBuffer.wrap(fieldValue.getBytes()));
-        }
-
-        String query = String.format("INSERT INTO \"%s\".\"%s\"\n" + //
-                "(%s)\n" + //
-                "VALUES (%s)\n" + //
-                "IF NOT EXISTS", //
-                tablespaceNameId, tableNameId, concat(fieldNames, ", "), createValuePlaceholders(fieldNames.size()));
-        LOG.debug("Insert query {}", query);
-
-        UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ALL, fieldValues.toArray());
-        LOG.debug("Insert result {}", result);
-        if (LOG.isTraceEnabled()) {
-            for (UntypedResultSet.Row row : result) {
-                LOG.trace("Insert result row {}", row);
-                for (ColumnSpecification col : row.getColumns()) {
-                    LOG.trace("Insert result row col {} = {}", col.name, col.type.compose(row.getBlob(col.name.toString())));
-                }
+            if (partKeyColumnsNames.remove(fieldNameId)) {
+                LOG.debug("KeyField {}", fieldName);
+                keyNames.add(fieldNameId);
+                keyValues.add(fieldFormattedValue);
+                fieldNames.add(fieldHashNameId);
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
+                fieldNames.add(fieldValueNameId);
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getBytes()));
+            } else {
+                LOG.debug("DataField {}", fieldName);
+                fieldNames.add(fieldNameId);
+                fieldValues.add(fieldFormattedValue);
+                // fieldValues.add(columnType.compose(ByteBuffer.wrap(fieldValue.getBytes())));
+                fieldNames.add(fieldHashNameId);
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
+                fieldNames.add(fieldValueNameId);
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getBytes()));
             }
         }
+
+        UntypedResultSet result = retry(//
+                r -> !(null == r || r.isEmpty() || r.size() > 1) && r.one().getBoolean("[applied]"), //
+                () -> {
+                    List<String> allNames = new LinkedList<>();
+                    allNames.addAll(keyNames);
+                    allNames.addAll(fieldNames);
+
+                    List<Object> allValues = new LinkedList<>();
+                    allValues.addAll(keyValues);
+                    allValues.addAll(fieldValues);
+
+                    String query = String.format("INSERT INTO \"%s\".\"%s\"\n" //
+                            + "(%s)\n" //
+                            + "VALUES (%s)\n" //
+                            + "IF NOT EXISTS", //
+                            tablespaceNameId, tableNameId, //
+                            concat(allNames, ", "), //
+                            createValuePlaceholders(allNames.size()));
+                    LOG.debug("Insert query {}", query);
+
+                    UntypedResultSet insertResult = QueryProcessor.execute(query, ConsistencyLevel.ALL, allValues.toArray());
+                    if (LOG.isTraceEnabled()) {
+                        for (UntypedResultSet.Row row : insertResult) {
+                            LOG.trace("Insert result row {}", row);
+                            for (ColumnSpecification col : row.getColumns()) {
+                                LOG.trace("Insert result row col {} = {}", col.name, col.type.compose(row.getBlob(col.name.toString())));
+                            }
+                        }
+                    }
+                    return insertResult;
+                }, () -> {
+                    LOG.trace("Inser failed trying to update...");
+                    List<Object> allValues = new LinkedList<>();
+                    allValues.addAll(fieldValues);
+                    allValues.addAll(keyValues);
+
+                    String query = String.format("UPDATE \"%s\".\"%s\"" //
+                            + " SET %s = ?" //
+                            + " WHERE %s = ?" //
+                            + " IF \"" + ENTRY_VERSION + "\" = 0", //
+                            tablespaceNameId, tableNameId, //
+                            concat(fieldNames, " = ?, "), //
+                            concat(keyNames, " = ? AND ") //
+                    );
+                    LOG.debug("InsertUpdate query {}", query);
+
+                    UntypedResultSet updateResult = QueryProcessor.execute(query, ConsistencyLevel.ALL, allValues.toArray());
+                    if (LOG.isDebugEnabled()) {
+                        for (UntypedResultSet.Row row : updateResult) {
+                            LOG.debug("Update result row {}", row);
+                            for (ColumnSpecification col : row.getColumns()) {
+                                ByteBuffer bytes = row.getBlob(col.name.toString());
+                                LOG.debug("Update result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
+                            }
+                        }
+                    }
+                    return updateResult;
+                });
+
         if (result.isEmpty()) {
             throw new TiesServiceScopeException("No insertion result found");
         } else if (result.size() > 1) {
             throw new TiesServiceScopeException("Multiple insertion results found");
         } else if (!result.one().getBoolean("[applied]")) {
             {
-                List<ColumnDefinition> partKeyColumns = cfMetaData.partitionKeyColumns();
-                ArrayList<String> partKeyColumnsNames = new ArrayList<>(partKeyColumns.size());
-                for (ColumnDefinition columnDefinition : partKeyColumns) {
-                    partKeyColumnsNames.add(columnDefinition.name.toString().toUpperCase());
-                }
                 partKeyColumnsNames.removeAll(fieldNames);
                 if (!partKeyColumnsNames.isEmpty()) {
                     LOG.debug("Missing values for {}", partKeyColumnsNames);
                     Map<String, String> emptyNames = new HashMap<>();
+
                     TiesSchemaUtil.loadFieldDescriptions(tablespaceName, tableName, fd -> {
                         emptyNames.put(getNameId("FLD", fd.getName()), fd.getName());
                     });
+
                     List<String> missingKeys = new LinkedList<>();
                     for (String fieldNameId : partKeyColumnsNames) {
                         missingKeys.add(emptyNames.get(fieldNameId));
@@ -420,7 +528,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         String tablespaceName = entry.getTablespaceName();
         String tableName = entry.getTableName();
-        LOG.debug("Insert into `{}`.`{}`", tablespaceName, tableName);
+        LOG.debug("Update in `{}`.`{}`", tablespaceName, tableName);
 
         String tablespaceNameId = getNameId("TIE", tablespaceName);
         String tableNameId = getNameId("TBL", tableName);
@@ -551,7 +659,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                         " SET %s = ?" + //
                         " WHERE %s = ?" + //
                         " IF \"" + ENTRY_HEADER + "\"." + HeaderField.HSH.name().toLowerCase() + " = ?" + //
-                        " AND \"" + ENTRY_HEADER + "\"." + HeaderField.VER.name().toLowerCase() + " = ?" + //
+                        " AND \"" + ENTRY_VERSION + "\" = ?" + //
                         "%s" + //
                         "%s", //
                 tablespaceNameId, tableNameId, //
@@ -588,6 +696,165 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
+    public void delete(TiesServiceScopeModification modificationRequest) throws TiesServiceScopeException {
+
+        TiesServiceScopeModification.Entry entry = modificationRequest.getEntry();
+
+        String tablespaceName = entry.getTablespaceName();
+        String tableName = entry.getTableName();
+        LOG.debug("Delete from `{}`.`{}`", tablespaceName, tableName);
+
+        String tablespaceNameId = getNameId("TIE", tablespaceName);
+        String tableNameId = getNameId("TBL", tableName);
+        LOG.debug("Mapping table `{}`.`{}` to {}.{}", tablespaceName, tableName, tablespaceNameId, tableNameId);
+
+        CFMetaData cfMetaData = Schema.instance.getCFMetaData(tablespaceNameId, tableNameId);
+
+        if (null == cfMetaData) {
+            throw new TiesServiceScopeException("Delete failed");
+        }
+
+        Map<String, Entry.FieldValue> entryFieldValues = entry.getFieldValues();
+        Map<String, Entry.FieldHash> entryFieldHashes = entry.getFieldHashes();
+        ArrayList<String> partKeyColumnsNames;
+        {
+            List<ColumnDefinition> partKeyColumns = cfMetaData.partitionKeyColumns();
+            partKeyColumnsNames = new ArrayList<>(partKeyColumns.size());
+            for (ColumnDefinition columnDefinition : partKeyColumns) {
+                partKeyColumnsNames.add(columnDefinition.name.toString().toUpperCase());
+            }
+        }
+
+        Map<String, String> emptyNames;
+        {
+            Collection<ColumnDefinition> columns = cfMetaData.allColumns();
+
+            ArrayList<String> columnNames = new ArrayList<>(columns.size());
+            for (ColumnDefinition c : columns) {
+                columnNames.add(c.name.toString());
+            }
+
+            Map<String, String> names = new HashMap<>();
+            TiesSchemaUtil.loadFieldDescriptions(tablespaceName, tableName, fd -> {
+                names.put(getNameId("FLD", fd.getName()), fd.getName());
+            });
+
+            if (!columnNames.containsAll(names.keySet())) {
+                LOG.warn("Fields count missmatch. TiesDB schema need to be updated.");
+            }
+
+            emptyNames = names;
+        }
+
+        List<String> keyNames = new ArrayList<>(partKeyColumnsNames.size());
+        List<Object> keyValues = new ArrayList<>(keyNames.size());
+        List<String> fieldNames = new ArrayList<>(entryFieldValues.size());
+        List<Object> fieldValues = new ArrayList<>(fieldNames.size());
+
+        addHeader(entry.getHeader(), fieldNames, fieldValues, cfMetaData);
+
+        if (!entryFieldHashes.entrySet().isEmpty()) {
+            throw new TiesServiceScopeException("Deletion Entry should have only key values");
+        }
+
+        for (Map.Entry<String, FieldValue> entryField : entryFieldValues.entrySet()) {
+
+            String fieldName = entryField.getKey();
+            String fieldNameId = getNameId("FLD", fieldName);
+
+            ColumnDefinition columnDefinition = cfMetaData.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true));
+            if (null == columnDefinition) {
+                throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
+            }
+
+            emptyNames.remove(fieldNameId);
+
+            Entry.FieldValue fieldValue = entryField.getValue();
+            requireNonNull(fieldValue);
+            LOG.debug("Field {} ({}) RawValue ({}) {}", fieldName, fieldNameId, fieldValue.getType(),
+                    format(fieldValue.getType(), fieldValue.getBytes()));
+
+            if (partKeyColumnsNames.remove(fieldNameId)) {
+                LOG.debug("KeyField {}", fieldName);
+                keyNames.add(fieldNameId);
+                Object fieldFormattedValue = TiesTypeHelper.formatToCassandraType(fieldValue.get(),
+                        columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
+                if (null != fieldFormattedValue) {
+                    LOG.debug("FormattedValue {} ({})", fieldFormattedValue, fieldFormattedValue.getClass());
+                } else {
+                    LOG.debug("FormattedValue null");
+                }
+                keyValues.add(fieldFormattedValue);
+            } else {
+                throw new TiesServiceScopeException("Deletion Entry should have only key values");
+            }
+        }
+
+        {
+            ByteBuffer emptyValue = null;
+            Iterator<Map.Entry<String, String>> it = emptyNames.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, String> emptyField = it.next();
+                it.remove();
+
+                String fieldName = emptyField.getValue();
+                String fieldNameId = emptyField.getKey();
+                String fieldHashNameId = getNameId("HSH", fieldName);
+                String fieldValueNameId = getNameId("VAL", fieldName);
+
+                fieldNames.add(fieldNameId);
+                fieldValues.add(emptyValue);
+                fieldNames.add(fieldHashNameId);
+                fieldValues.add(emptyValue);
+                fieldNames.add(fieldValueNameId);
+                fieldValues.add(emptyValue);
+            }
+        }
+
+        if (!partKeyColumnsNames.isEmpty()) {
+            LOG.debug("Missing values for {}", partKeyColumnsNames);
+            List<String> missingKeys = new LinkedList<>();
+            for (String fieldNameId : partKeyColumnsNames) {
+                missingKeys.add(emptyNames.get(fieldNameId));
+            }
+            throw new TiesServiceScopeException("Missing key fields for `" + tablespaceName + "`.`" + tableName + "`: " + missingKeys);
+        }
+
+        String query = String.format("UPDATE \"%s\".\"%s\"" //
+                + " SET %s = ?" //
+                + " WHERE %s = ?" //
+                + " IF \"" + ENTRY_HEADER + "\"." + HeaderField.HSH.name().toLowerCase() + " = ?" //
+                + " AND \"" + ENTRY_VERSION + "\" > 0", //
+                tablespaceNameId, tableNameId, //
+                concat(fieldNames, " = ?, "), //
+                concat(keyNames, " = ? AND ")//
+        );
+        LOG.debug("Delete query {}", query);
+
+        fieldValues.addAll(keyValues);
+        fieldValues.add(TiesTypeHelper.formatToCassandraType(entry.getHeader().getEntryOldHash(), BytesType.instance));
+
+        UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ALL, fieldValues.toArray());
+        LOG.debug("Delete result {}", result);
+        if (LOG.isDebugEnabled()) {
+            for (UntypedResultSet.Row row : result) {
+                LOG.debug("Delete result row {}", row);
+                for (ColumnSpecification col : row.getColumns()) {
+                    ByteBuffer bytes = row.getBlob(col.name.toString());
+                    LOG.debug("Delete result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
+                }
+            }
+        }
+        if (result.isEmpty()) {
+            throw new TiesServiceScopeException("No delete result found");
+        } else if (result.size() > 1) {
+            throw new TiesServiceScopeException("Multiple delete results found");
+        } else if (!result.one().getBoolean("[applied]")) {
+            throw new TiesServiceScopeException("Delete failed");
+        }
+    }
+
+    @Override
     public void select(TiesServiceScopeRecollection scope) throws TiesServiceScopeException {
 
         Query request = scope.getQuery();
@@ -603,7 +870,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         CFMetaData cfMetaData = Schema.instance.getCFMetaData(tablespaceNameId, tableNameId);
 
         if (null == cfMetaData) {
-            throw new TiesServiceScopeException("Table `" + tablespaceName + "`.`" + tableName + "` was not found");
+            LOG.debug("Table `{}`.`{}` does not exist or not yet created", tablespaceName, tableName);
+            return;
         }
 
         List<Object> qv = new LinkedList<>();
@@ -665,8 +933,9 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         qb.append("select ");
         qb.append('"');
         qb.append(ENTRY_HEADER);
-        qb.append('"');
-        qb.append(',');
+        qb.append("\",\"");
+        qb.append(ENTRY_VERSION);
+        qb.append("\",");
         if (!selectors.isEmpty()) {
             Map<String, String> selectedFields = new HashMap<>();
 
@@ -734,15 +1003,21 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         qb.append(tableNameId);
         qb.append("\"");
 
+        qb.append(" where \"");
         List<Filter> filters = request.getFilters();
         if (!filters.isEmpty()) {
-            qb.append(" where \"");
             for (Filter filter : filters) {
                 forFilter(argVisitor, qb, filter);
                 qb.append(" and ");
             }
-            qb.setLength(qb.length() - 5);
+            // qb.setLength(qb.length() - 5);
+            qb.append("\"");
         }
+
+        qb.append(ENTRY_VERSION);
+        qb.append("\" > 0");
+
+        qb.append(" ALLOW FILTERING");
 
         LOG.debug("{}", qb);
 
@@ -779,7 +1054,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         byte[] ohs = newEntryHeaderField(type, components, HeaderField.OHS, ByteArrayType.instance);
         byte[] fhs = newEntryHeaderField(type, components, HeaderField.FHS, ByteArrayType.instance);
         byte[] hsh = newEntryHeaderField(type, components, HeaderField.HSH, ByteArrayType.instance);
-        BigInteger ver = newEntryHeaderField(type, components, HeaderField.VER, IntegerType.instance);
+        BigInteger ver = IntegerType.instance.compose(row.getBlob(ENTRY_VERSION));
         Date tim = newEntryHeaderField(type, components, HeaderField.TIM, TimestampType.instance);
         Short net = newEntryHeaderField(type, components, HeaderField.NET, ShortType.instance);
 

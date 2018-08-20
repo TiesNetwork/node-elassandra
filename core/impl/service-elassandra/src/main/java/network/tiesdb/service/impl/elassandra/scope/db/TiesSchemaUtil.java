@@ -164,11 +164,11 @@ public final class TiesSchemaUtil {
     }
 
     public static final String ENTRY_HEADER = "ENTRY_HEADER";
+    public static final String ENTRY_VERSION = "VERSION";
 
     public static enum HeaderField {
 
         TIM, //
-        VER, //
         NET, //
         FHS, //
         OHS, //
@@ -758,7 +758,13 @@ public final class TiesSchemaUtil {
             query.append(tablespaceNameId);
             query.append("\".\"");
             query.append(tableNameId);
-            query.append("\" (\"ENTRY_HEADER\" \"ENTRY_HEADER\",");
+            query.append("\" (\"");
+            query.append(ENTRY_HEADER);
+            query.append("\" \"");
+            query.append(TYPE_ENTRY_HEADER);
+            query.append("\",\"");
+            query.append(ENTRY_VERSION);
+            query.append("\" varint,");
 
             for (FieldDescription field : primaryIndex) {
                 query.append('"');
@@ -802,7 +808,6 @@ public final class TiesSchemaUtil {
             QueryProcessor.execute(//
                     "CREATE TYPE IF NOT EXISTS \"" + tablespaceNameId + "\".\"" + TYPE_ENTRY_HEADER + "\" (" //
                             + " tim timestamp," //
-                            + " ver varint," //
                             + " net smallint," //
                             + " fhs blob," //
                             + " ohs blob," //

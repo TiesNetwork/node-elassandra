@@ -285,7 +285,18 @@ public class RequestController implements Request.Visitor<Response> {
                         }
 
                     });
-                } else {
+                } else if(null != header.getEntryOldHash() && BigInteger.ZERO.equals(header.getEntryVersion())){
+                    serviceScope.delete(new TiesServiceScopeModification() {
+
+                        private final EntryImpl entry = new EntryImpl(modificationEntry, false);
+
+                        @Override
+                        public Entry getEntry() {
+                            return entry;
+                        }
+
+                    });
+                } else if(null != header.getEntryOldHash()) {
                     serviceScope.update(new TiesServiceScopeModification() {
 
                         private final EntryImpl entry = new EntryImpl(modificationEntry, false);
@@ -296,6 +307,8 @@ public class RequestController implements Request.Visitor<Response> {
                         }
 
                     });
+                } else {
+                    throw new TiesServiceScopeException("Illegal modification EntryOldHash and/or EntryVersion");
                 }
             } catch (TiesServiceScopeException e) {
                 LOG.error("Error handling ModificationRequest.Entry {}", modificationEntry, e);
