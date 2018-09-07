@@ -18,22 +18,21 @@
  */
 package network.tiesdb.service.scope.api;
 
-import java.io.Closeable;
+public interface TiesServiceScopeSchema {
 
-import network.tiesdb.api.TiesVersion;
+    interface FieldSchema {
 
-public interface TiesServiceScope extends Closeable {
+        String getFieldName();
 
-    TiesVersion getServiceVersion();
+        String getFieldType();
 
-    void insert(TiesServiceScopeModification action) throws TiesServiceScopeException;
+        boolean isPrimary();
 
-    void update(TiesServiceScopeModification action) throws TiesServiceScopeException;
+    }
 
-    void delete(TiesServiceScopeModification action) throws TiesServiceScopeException;
+    String getTablespaceName();
 
-    void select(TiesServiceScopeRecollection query) throws TiesServiceScopeException;
+    String getTableName();
 
-    void schema(TiesServiceScopeSchema query) throws TiesServiceScopeException;
-
+    void addResult(FieldSchema field) throws TiesServiceScopeException;
 }

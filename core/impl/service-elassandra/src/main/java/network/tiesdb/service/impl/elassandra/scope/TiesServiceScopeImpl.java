@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -80,6 +81,8 @@ import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Funct
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Function.Argument;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Selector;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Result;
+import network.tiesdb.service.scope.api.TiesServiceScopeSchema;
+import network.tiesdb.service.scope.api.TiesServiceScopeSchema.FieldSchema;
 
 public class TiesServiceScopeImpl implements TiesServiceScope {
 
@@ -368,6 +371,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         }
 
         Map<String, Entry.FieldValue> entryFields = entry.getFieldValues();
+
+        if (entryFields.isEmpty()) {
+            return;
+        }
 
         ArrayList<String> partKeyColumnsNames;
         {
@@ -1035,6 +1042,81 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         for (UntypedResultSet.Row row : result) {
             scope.addResult(newResult(row, newEntryHeader(row, cfMetaData), tiesFields, tiesComputes, fieldMap, aliasMap));
         }
+    }
+
+    private static final class TiesServiceScopeExceptionWrapper extends RuntimeException {
+
+        private static final long serialVersionUID = -7205017938363533519L;
+
+        private final TiesServiceScopeException cause;
+
+        public TiesServiceScopeExceptionWrapper(TiesServiceScopeException cause) {
+            super(cause);
+            this.cause = cause;
+        }
+
+        public TiesServiceScopeException unwrap() {
+            return cause;
+        }
+
+    }
+
+    @Override
+    public void schema(TiesServiceScopeSchema query) throws TiesServiceScopeException {
+
+        String tablespaceName = query.getTablespaceName();
+        String tableName = query.getTableName();
+        LOG.debug("Schema for `{}`.`{}`", tablespaceName, tableName);
+
+        String tablespaceNameId = getNameId("TIE", tablespaceName);
+        String tableNameId = getNameId("TBL", tableName);
+        LOG.debug("Mapping table `{}`.`{}` to {}.{}", tablespaceName, tableName, tablespaceNameId, tableNameId);
+
+        CFMetaData cfMetaData = Schema.instance.getCFMetaData(tablespaceNameId, tableNameId);
+        if (null == cfMetaData) {
+            return;
+        }
+
+        HashSet<String> partKeyColumnsNameIds;
+        {
+            List<ColumnDefinition> partKeyColumns = cfMetaData.partitionKeyColumns();
+            partKeyColumnsNameIds = new HashSet<>(partKeyColumns.size());
+            for (ColumnDefinition columnDefinition : partKeyColumns) {
+                partKeyColumnsNameIds.add(columnDefinition.name.toString().toUpperCase());
+            }
+        }
+
+        try {
+            TiesSchemaUtil.loadFieldDescriptions(tablespaceName, tableName, fd -> {
+                LOG.debug("Field `{}`.`{}`.`{}`:{}", tablespaceName, tableName, fd.getName(), fd.getType());
+                try {
+                    query.addResult(new FieldSchema() {
+
+                        private final boolean primary = partKeyColumnsNameIds.contains(getNameId("FLD", fd.getName()));
+
+                        @Override
+                        public String getFieldType() {
+                            return fd.getName();
+                        }
+
+                        @Override
+                        public String getFieldName() {
+                            return fd.getType();
+                        }
+
+                        @Override
+                        public boolean isPrimary() {
+                            return primary;
+                        }
+                    });
+                } catch (TiesServiceScopeException e) {
+                    throw new TiesServiceScopeExceptionWrapper(e);
+                }
+            });
+        } catch (TiesServiceScopeExceptionWrapper e) {
+            throw e.unwrap();
+        }
+
     }
 
     private static TiesEntryHeader newEntryHeader(Row row, CFMetaData cfMetaData) throws TiesServiceScopeException {

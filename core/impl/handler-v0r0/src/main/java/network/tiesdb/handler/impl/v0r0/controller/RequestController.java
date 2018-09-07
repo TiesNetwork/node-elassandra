@@ -52,12 +52,15 @@ import com.tiesdb.protocol.v0r0.reader.Reader.Request;
 import com.tiesdb.protocol.v0r0.reader.RecollectionRequestReader.RecollectionRequest;
 import com.tiesdb.protocol.v0r0.reader.RecollectionRequestReader.Retrieve;
 import com.tiesdb.protocol.v0r0.reader.RequestReader;
+import com.tiesdb.protocol.v0r0.reader.SchemaRequestReader.SchemaRequest;
 import com.tiesdb.protocol.v0r0.writer.ModificationResponseWriter.ModificationResponse;
 import com.tiesdb.protocol.v0r0.writer.ModificationResponseWriter.ModificationResult;
 import com.tiesdb.protocol.v0r0.writer.ModificationResultErrorWriter.ModificationResultError;
 import com.tiesdb.protocol.v0r0.writer.ModificationResultSuccessWriter.ModificationResultSuccess;
 import com.tiesdb.protocol.v0r0.writer.RecollectionResponseWriter.RecollectionResponse;
 import com.tiesdb.protocol.v0r0.writer.RecollectionResultWriter.RecollectionResult;
+import com.tiesdb.protocol.v0r0.writer.SchemaFieldWriter.SchemaField;
+import com.tiesdb.protocol.v0r0.writer.SchemaResponseWriter.SchemaResponse;
 import com.tiesdb.protocol.v0r0.writer.Writer.Response;
 
 import network.tiesdb.service.api.TiesService;
@@ -67,6 +70,7 @@ import network.tiesdb.service.scope.api.TiesServiceScopeException;
 import network.tiesdb.service.scope.api.TiesServiceScopeModification;
 import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection;
+import network.tiesdb.service.scope.api.TiesServiceScopeSchema;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query;
 
 public class RequestController implements Request.Visitor<Response> {
@@ -285,7 +289,7 @@ public class RequestController implements Request.Visitor<Response> {
                         }
 
                     });
-                } else if(null != header.getEntryOldHash() && BigInteger.ZERO.equals(header.getEntryVersion())){
+                } else if (null != header.getEntryOldHash() && BigInteger.ZERO.equals(header.getEntryVersion())) {
                     serviceScope.delete(new TiesServiceScopeModification() {
 
                         private final EntryImpl entry = new EntryImpl(modificationEntry, false);
@@ -296,7 +300,7 @@ public class RequestController implements Request.Visitor<Response> {
                         }
 
                     });
-                } else if(null != header.getEntryOldHash()) {
+                } else if (null != header.getEntryOldHash()) {
                     serviceScope.update(new TiesServiceScopeModification() {
 
                         private final EntryImpl entry = new EntryImpl(modificationEntry, false);
@@ -560,6 +564,77 @@ public class RequestController implements Request.Visitor<Response> {
             throw new TiesDBProtocolMessageException(messageId, "Error handling RecollectionRequest", e);
         }
 
+    }
+
+    @Override
+    public Response on(SchemaRequest request) throws TiesDBProtocolException {
+        requireNonNull(request);
+
+        BigInteger messageId = request.getMessageId();
+        LOG.debug("MessageID: {}", messageId);
+
+        TiesServiceScope serviceScope = service.newServiceScope();
+        LOG.debug("Service scope: {}", serviceScope);
+
+        LinkedList<SchemaField> schemaFields = new LinkedList<>();
+
+        try {
+            serviceScope.schema(new TiesServiceScopeSchema() {
+
+                @Override
+                public String getTablespaceName() {
+                    return request.getTablespaceName();
+                }
+
+                @Override
+                public String getTableName() {
+                    return request.getTableName();
+                }
+
+                @Override
+                public void addResult(FieldSchema field) throws TiesServiceScopeException {
+                    schemaFields.add(new SchemaField() {
+
+                        @Override
+                        public String getType() {
+                            return field.getFieldType();
+                        }
+
+                        @Override
+                        public String getName() {
+                            return field.getFieldName();
+                        }
+
+                        @Override
+                        public boolean isPrimary() {
+                            return field.isPrimary();
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "SchemaField [" + (isPrimary() ? "primary, " : "") + "name=" + getName() + ", type=" + getType() + "]";
+                        }
+
+                    });
+                }
+            });
+        } catch (TiesServiceScopeException e) {
+            LOG.error("Error handling SchemaRequest {}", request, e);
+            throw new TiesDBProtocolMessageException(messageId, "Error handling SchemaRequest", e);
+        }
+
+        return new SchemaResponse() {
+
+            @Override
+            public BigInteger getMessageId() {
+                return request.getMessageId();
+            }
+
+            @Override
+            public Iterable<SchemaField> getFields() {
+                return schemaFields;
+            }
+        };
     }
 
 }
