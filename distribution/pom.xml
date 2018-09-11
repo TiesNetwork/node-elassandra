@@ -26,7 +26,7 @@
     <parent>
         <groupId>com.tiesdb</groupId>
         <artifactId>node-elassandra-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.1-SNAPSHOT</version>
     </parent>
 
     <packaging>pom</packaging>
