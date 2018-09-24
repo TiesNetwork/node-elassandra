@@ -39,7 +39,7 @@ public class TiesSchemaFactoryImpl implements TiesSchemaFactory {
         try {
             return new TiesSchemaEthereum(schemaConfig);
         } catch (Throwable e) {
-            throw new RuntimeException("Can't create TiesDB schema", e);
+            throw new RuntimeException("Can't obtain TiesDB schema", e);
         }
     }
 
