@@ -24,7 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import network.tiesdb.context.api.TiesServiceConfig;
-import network.tiesdb.bootstrap.util.TiesContextHandler;
 import network.tiesdb.context.api.TiesContext;
 import network.tiesdb.exception.TiesStartupException;
 import network.tiesdb.service.api.TiesServiceDaemon;
@@ -81,7 +80,7 @@ public class TiesInitialization implements Runnable {
             } else {
                 logger.trace("Launching TiesDB service \"{}\"", name);
                 try {
-                    TiesServiceDaemon service = tiesServiceFactory.createServiceDaemon(name, config);
+                    TiesServiceDaemon service = tiesServiceFactory.createServiceDaemon(name);
                     service.init();
                     TiesShutdown.addShutdownHook(service);
                     service.start();

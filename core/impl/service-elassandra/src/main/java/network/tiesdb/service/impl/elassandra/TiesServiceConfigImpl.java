@@ -54,7 +54,7 @@ public class TiesServiceConfigImpl implements TiesServiceConfig {
 
     @Override
     public TiesServiceFactory getTiesServiceFactory() {
-        return new TiesServiceFactoryImpl();
+        return new TiesServiceFactoryImpl(this);
     }
 
     @Override

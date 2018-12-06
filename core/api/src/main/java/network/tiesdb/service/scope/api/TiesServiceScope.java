@@ -36,4 +36,6 @@ public interface TiesServiceScope extends Closeable {
 
     void schema(TiesServiceScopeSchema query) throws TiesServiceScopeException;
 
+    void result(TiesServiceScopeResult result) throws TiesServiceScopeException;
+
 }

@@ -101,7 +101,7 @@ public class TiesTransportConfigImpl implements TiesTransportConfig {
 
     @Override
     public TiesTransportFactory getTiesTransportFactory() {
-        return new TiesTransportFactoryImpl();
+        return new TiesTransportFactoryImpl(this);
     }
 
     public TransportSecurityConfig getSecurity() {

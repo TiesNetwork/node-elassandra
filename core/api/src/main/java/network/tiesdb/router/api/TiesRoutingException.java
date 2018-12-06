@@ -16,20 +16,20 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.transport.api;
+package network.tiesdb.router.api;
 
-import java.io.OutputStream;
+import network.tiesdb.exception.TiesException;
 
-/**
- * TiesDB response API.
- * 
- * <P>
- * Defines common response functions.
- * 
- * @author Anton Filatov (filatov@ties.network)
- */
-public interface TiesResponse {
+public class TiesRoutingException extends TiesException {
 
-    OutputStream getOutputStream();
+    private static final long serialVersionUID = 1142288692789241039L;
+
+    public TiesRoutingException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
+    public TiesRoutingException(String message) {
+        super(message);
+    }
 
 }

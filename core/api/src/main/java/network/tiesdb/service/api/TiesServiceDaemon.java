@@ -19,7 +19,6 @@
 package network.tiesdb.service.api;
 
 import network.tiesdb.api.TiesDaemon;
-import network.tiesdb.exception.TiesConfigurationException;
 
 /**
  * TiesDB service daemon API.
@@ -33,5 +32,6 @@ public interface TiesServiceDaemon extends TiesDaemon {
 
     String getName();
 
-    TiesService getService() throws TiesConfigurationException;
+    TiesService getService();
+
 }

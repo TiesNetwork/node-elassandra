@@ -20,7 +20,7 @@ package network.tiesdb.service.scope.api;
 
 import java.util.Map;
 
-public interface TiesServiceScopeModification {
+public interface TiesServiceScopeModification extends TiesServiceScopeAction, TiesServiceScopeAction.Distributed {
 
     interface Entry {
 
@@ -28,11 +28,11 @@ public interface TiesServiceScopeModification {
 
             byte[] getHash();
 
+            String getType();
+
         }
 
         interface FieldValue extends FieldHash {
-
-            String getType();
 
             Object get();
 
@@ -52,6 +52,48 @@ public interface TiesServiceScopeModification {
 
     }
 
+    interface Result extends TiesServiceScopeResult.Result {
+
+        interface Visitor<T> {
+
+            T on(Success success) throws TiesServiceScopeException;
+
+            T on(Error error) throws TiesServiceScopeException;
+
+        }
+
+        interface Success extends Result {
+
+            @Override
+            default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                return v.on(this);
+            }
+
+        }
+
+        interface Error extends Result {
+
+            @Override
+            default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                return v.on(this);
+            }
+
+            Throwable getError();
+
+        }
+
+        default <T> T accept(TiesServiceScopeResult.Result.Visitor<T> v) throws TiesServiceScopeException {
+            return v.on(this);
+        }
+
+        <T> T accept(Visitor<T> v) throws TiesServiceScopeException;
+
+        byte[] getHeaderHash();
+
+    }
+
     Entry getEntry();
+
+    void addResult(Result result) throws TiesServiceScopeException;
 
 }

@@ -18,7 +18,6 @@
  */
 package network.tiesdb.service.impl.elassandra;
 
-import network.tiesdb.context.api.TiesServiceConfig;
 import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.service.api.TiesServiceFactory;
 
@@ -29,8 +28,14 @@ import network.tiesdb.service.api.TiesServiceFactory;
  */
 public class TiesServiceFactoryImpl implements TiesServiceFactory {
 
+    private final TiesServiceConfigImpl config;
+
+    public TiesServiceFactoryImpl(TiesServiceConfigImpl config) {
+        this.config = config;
+    }
+
     @Override
-    public TiesServiceDaemonImpl createServiceDaemon(String name, TiesServiceConfig config) throws TiesConfigurationException {
+    public TiesServiceDaemonImpl createServiceDaemon(String name) throws TiesConfigurationException {
         return new TiesServiceDaemonImpl(name, config);
     }
 

@@ -18,7 +18,6 @@
  */
 package network.tiesdb.service.api;
 
-import network.tiesdb.context.api.TiesServiceConfig;
 import network.tiesdb.exception.TiesConfigurationException;
 
 /**
@@ -31,6 +30,6 @@ import network.tiesdb.exception.TiesConfigurationException;
  */
 public interface TiesServiceFactory {
 
-    TiesServiceDaemon createServiceDaemon(String name, TiesServiceConfig config) throws TiesConfigurationException;
+    TiesServiceDaemon createServiceDaemon(String name) throws TiesConfigurationException;
 
 }

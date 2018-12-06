@@ -40,6 +40,8 @@ import network.tiesdb.schema.api.TiesSchema;
 
 public class TiesSchemaEthereum implements TiesSchema {
 
+    private static final short ETHEREUM_NETWORK_ID = 0x3c; // slip-0044.Ether
+
     private final TiesDB contract;
 
     public TiesSchemaEthereum(TiesSchemaEthereumConfig ethereumConfig) throws IOException, TiesConfigurationException {
@@ -68,6 +70,11 @@ public class TiesSchemaEthereum implements TiesSchema {
     @Override
     public Tablespace getTablespace(String name) {
         return TablespaceImpl.newInstance(new SchemaImpl(contract).getTablespace(name));
+    }
+
+    @Override
+    public short getSchemaNetwork() {
+        return ETHEREUM_NETWORK_ID;
     }
 
 }

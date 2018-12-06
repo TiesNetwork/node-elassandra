@@ -39,8 +39,8 @@ import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import network.tiesdb.context.api.TiesTransportConfig;
 import network.tiesdb.exception.util.MessageHelper;
-import network.tiesdb.transport.api.TiesTransport;
 import network.tiesdb.transport.impl.ws.TiesTransportConfigImpl;
+import network.tiesdb.transport.impl.ws.TiesTransportImpl;
 
 public class WebSocketServerInitializer extends ChannelInitializer<SocketChannel> {
 
@@ -56,10 +56,6 @@ public class WebSocketServerInitializer extends ChannelInitializer<SocketChannel
         private ConfigurableIdleStateHandler(TiesTransportConfigImpl config) {
             this(nullsafe(config).getIdleReaderTime(), nullsafe(config).getIdleWriterTime(), nullsafe(config).getIdleTime(),
                     TimeUnit.valueOf(nullsafe(config).getIdleTimeUnit()));
-        }
-
-        private ConfigurableIdleStateHandler(TiesTransportConfig config) {
-            this((TiesTransportConfigImpl) config);
         }
 
         @Override
@@ -79,9 +75,9 @@ public class WebSocketServerInitializer extends ChannelInitializer<SocketChannel
 
     private final SslContext sslCtx;
 
-    private final TiesTransport transport;
+    private final TiesTransportImpl transport;
 
-    public WebSocketServerInitializer(TiesTransport transport, SslContext sslCtx) {
+    public WebSocketServerInitializer(TiesTransportImpl transport, SslContext sslCtx) {
         this.transport = transport;
         this.sslCtx = sslCtx;
     }
@@ -113,7 +109,7 @@ public class WebSocketServerInitializer extends ChannelInitializer<SocketChannel
 
     protected void config2ndStage(SocketChannel ch) {
         ChannelPipeline pipeline = ch.pipeline();
-        pipeline.addLast(new ConfigurableIdleStateHandler(nullsafe(transport.getTiesTransportConfig())));
+        pipeline.addLast(new ConfigurableIdleStateHandler(transport.getTiesTransportConfig()));
     }
 
     protected void configToS(SocketChannel ch) {

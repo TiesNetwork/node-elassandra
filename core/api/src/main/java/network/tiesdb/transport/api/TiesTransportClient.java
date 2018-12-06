@@ -16,28 +16,24 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.api;
+package network.tiesdb.transport.api;
 
-import network.tiesdb.context.api.TiesServiceConfig;
-import network.tiesdb.service.api.TiesServiceDaemon;
+import network.tiesdb.api.TiesDaemon;
+import network.tiesdb.exception.TiesException;
+import network.tiesdb.service.scope.api.TiesServiceScopeConsumer;
 
 /**
- * TiesDB service API.
+ * TiesDB transport daemon API.
  * 
- * <P>Defines common service functions.
+ * <P>
+ * Defines common daemon controls of TiesDB transport.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public interface TiesService {
+public interface TiesTransportClient extends TiesDaemon {
 
-	TiesServiceDaemon getDaemon();
+    void request(TiesServiceScopeConsumer consumer) throws TiesException;
 
-	TiesServiceConfig getTiesServiceConfig();
-
-	TiesHandler getHandler();
-	
-	TiesVersion getApiVersion();
-	
-	TiesVersion getImplVersion();
+    TiesTransportClient check() throws TiesException;
 
 }

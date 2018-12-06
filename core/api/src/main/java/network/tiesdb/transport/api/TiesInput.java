@@ -18,19 +18,18 @@
  */
 package network.tiesdb.transport.api;
 
-import network.tiesdb.api.TiesDaemon;
-import network.tiesdb.exception.TiesConfigurationException;
+import java.io.InputStream;
 
 /**
- * TiesDB transport daemon API.
+ * TiesDB request API.
  * 
  * <P>
- * Defines common daemon controls of TiesDB transport.
+ * Defines common request functions.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public interface TiesTransportDaemon extends TiesDaemon {
+public interface TiesInput {
 
-    TiesTransport getTiesTransport() throws TiesConfigurationException;
+    InputStream getInputStream();
 
 }

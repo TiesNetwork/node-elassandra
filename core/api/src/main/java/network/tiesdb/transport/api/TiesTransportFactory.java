@@ -18,7 +18,8 @@
  */
 package network.tiesdb.transport.api;
 
-import network.tiesdb.context.api.TiesTransportConfig;
+import java.net.URI;
+
 import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.service.api.TiesService;
 
@@ -32,6 +33,8 @@ import network.tiesdb.service.api.TiesService;
  */
 public interface TiesTransportFactory {
 
-    TiesTransportDaemon createTransportDaemon(TiesService service, TiesTransportConfig config) throws TiesConfigurationException;
+    TiesTransportServer createTransportServer(TiesService service) throws TiesConfigurationException;
+
+    TiesTransportClient createTransportClient(TiesService service, URI destination) throws TiesConfigurationException;
 
 }

@@ -18,7 +18,7 @@
  */
 package network.tiesdb.service.scope.api;
 
-public interface TiesServiceScopeSchema {
+public interface TiesServiceScopeSchema extends TiesServiceScopeAction {
 
     interface FieldSchema {
 
@@ -34,5 +34,5 @@ public interface TiesServiceScopeSchema {
 
     String getTableName();
 
-    void addResult(FieldSchema field) throws TiesServiceScopeException;
+    void addFieldSchema(FieldSchema field) throws TiesServiceScopeException;
 }

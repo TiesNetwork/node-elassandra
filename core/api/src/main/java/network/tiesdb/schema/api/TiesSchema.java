@@ -67,6 +67,8 @@ public interface TiesSchema {
 
     }
 
+    short getSchemaNetwork();
+
     Tablespace getTablespace(String name);
 
 }

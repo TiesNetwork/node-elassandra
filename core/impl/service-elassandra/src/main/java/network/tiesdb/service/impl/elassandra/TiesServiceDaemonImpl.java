@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import network.tiesdb.context.api.TiesServiceConfig;
 import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.exception.TiesException;
+import network.tiesdb.service.api.TiesService;
 import network.tiesdb.service.api.TiesServiceDaemon;
 
 /**
@@ -37,12 +38,15 @@ public class TiesServiceDaemonImpl extends TiesServiceImpl implements Runnable, 
 
     private final Thread tiesServiceThread;
 
+    private final String name;
+
     public TiesServiceDaemonImpl(String name, TiesServiceConfig config) throws TiesConfigurationException {
-        super(name, config);
+        super(config);
         logger.trace("Creating TiesDB Service Daemon...");
         ThreadGroup tiesThreadGroup = new ThreadGroup(Thread.currentThread().getThreadGroup(), name);
         tiesServiceThread = new Thread(tiesThreadGroup, this, "TiesServiceDaemon:" + name);
         tiesServiceThread.setDaemon(false);
+        this.name = name;
         logger.trace("TiesDB Service Daemon created successfully");
     }
 
@@ -93,18 +97,13 @@ public class TiesServiceDaemonImpl extends TiesServiceImpl implements Runnable, 
     }
 
     @Override
-    public TiesServiceImpl getService() throws TiesConfigurationException {
-        return this;
-    }
-
-    @Override
-    public TiesServiceDaemonImpl getDaemon() {
-        return this;
-    }
-
-    @Override
     public String getName() {
         return name;
+    }
+
+    @Override
+    public TiesService getService() {
+        return this;
     }
 
 }

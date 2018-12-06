@@ -23,27 +23,27 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.Channel;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
-import network.tiesdb.transport.api.TiesResponse;
+import network.tiesdb.transport.api.TiesOutput;
 
 /**
  * TiesDB response handler for WebSock.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public class WebSocketResponseHandler implements TiesResponse, AutoCloseable {
+public class WebSocketOutputHandler implements TiesOutput, AutoCloseable {
 
     private static class WrappedOutputStream extends ByteArrayOutputStream {
 
         volatile boolean sentAndClosed = false;
-        private final ChannelHandlerContext ctx;
+        private final Channel ch;
 
-        private WrappedOutputStream(ChannelHandlerContext ctx) {
-            if (null == ctx) {
-                throw new NullPointerException("The ctx should not be null");
+        private WrappedOutputStream(Channel ch) {
+            if (null == ch) {
+                throw new NullPointerException("The channel should not be null");
             }
-            this.ctx = ctx;
+            this.ch = ch;
         }
 
         private void check() {
@@ -66,9 +66,9 @@ public class WebSocketResponseHandler implements TiesResponse, AutoCloseable {
 
         @Override
         public void close() throws IOException {
-            if (!sentAndClosed) {
+            if (!sentAndClosed && size() > 0) {
                 try {
-                    ctx.channel().writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(toByteArray()))).sync();
+                    ch.writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(toByteArray()))).sync();
                     sentAndClosed = true;
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -81,8 +81,8 @@ public class WebSocketResponseHandler implements TiesResponse, AutoCloseable {
 
     private final WrappedOutputStream os;
 
-    public WebSocketResponseHandler(ChannelHandlerContext ctx) {
-        this.os = new WrappedOutputStream(ctx);
+    public WebSocketOutputHandler(Channel ch) {
+        this.os = new WrappedOutputStream(ch);
     }
 
     @Override

@@ -18,13 +18,15 @@
  */
 package network.tiesdb.transport.impl.ws.netty;
 
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import network.tiesdb.exception.TiesException;
-import network.tiesdb.transport.api.TiesTransport;
+import network.tiesdb.service.scope.api.TiesServiceScopeConsumer;
+import network.tiesdb.transport.impl.ws.TiesTransportImpl;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,9 +35,9 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketFrameHandler.class);
 
-    private final TiesTransport transport;
+    protected final TiesTransportImpl transport;
 
-    public WebSocketFrameHandler(TiesTransport transport) {
+    public WebSocketFrameHandler(TiesTransportImpl transport) {
         if (null == transport) {
             throw new NullPointerException("The transport should not be null");
         }
@@ -43,12 +45,13 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
-        if (frame instanceof BinaryWebSocketFrame) {
+    protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame inboundFrame) throws Exception {
+        if (inboundFrame instanceof BinaryWebSocketFrame) {
+            BinaryWebSocketFrame frame = (BinaryWebSocketFrame) inboundFrame;
             logger.info("{} received {} bytes", ctx.channel(), frame.content().readableBytes());
             try {
-                try (WebSocketRequestHandler request = new WebSocketRequestHandler(frame)) {
-                    try (WebSocketResponseHandler response = new WebSocketResponseHandler(ctx)) {
+                try (WebSocketInputHandler request = new WebSocketInputHandler(frame)) {
+                    try (WebSocketOutputHandler response = new WebSocketOutputHandler(ctx.channel())) {
                         transport.getHandler().handle(request, response);
                     }
                 }
@@ -59,10 +62,20 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
             // ctx.channel().writeAndFlush(new
             // TextWebSocketFrame(request.toUpperCase(Locale.US)));
         } else {
-            logger.error("Unsupported frame type: {}", frame.getClass().getName());
-            ctx.channel().writeAndFlush(new CloseWebSocketFrame(1003, "Only Binary frames are supported"));
+            logger.error("Unsupported frame type: {}", inboundFrame.getClass().getName());
+            ctx.channel().writeAndFlush(new CloseWebSocketFrame(1003, "Only Binary Web Socket frames are supported"));
             // throw new UnsupportedOperationException("unsupported frame type: " +
             // frame.getClass().getName());
+        }
+    }
+
+    protected void channelWrite0(Channel ch, TiesServiceScopeConsumer consumer) {
+        try {
+            try (WebSocketOutputHandler response = new WebSocketOutputHandler(ch)) {
+                transport.getHandler().handle(consumer, response);
+            }
+        } catch (Exception e) {
+            logger.error("Channel error: {}", e.getMessage(), e);
         }
     }
 }

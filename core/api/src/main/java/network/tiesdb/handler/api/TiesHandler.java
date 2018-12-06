@@ -21,8 +21,9 @@ package network.tiesdb.handler.api;
 import network.tiesdb.api.TiesVersion;
 import network.tiesdb.context.api.TiesHandlerConfig;
 import network.tiesdb.exception.TiesException;
-import network.tiesdb.transport.api.TiesRequest;
-import network.tiesdb.transport.api.TiesResponse;
+import network.tiesdb.service.scope.api.TiesServiceScopeConsumer;
+import network.tiesdb.transport.api.TiesInput;
+import network.tiesdb.transport.api.TiesOutput;
 
 /**
  * TiesDB handler API.
@@ -36,7 +37,9 @@ public interface TiesHandler {
 
     TiesHandlerConfig getTiesHandlerConfig();
 
-    void handle(TiesRequest request, TiesResponse response) throws TiesException;
+    void handle(TiesInput input, TiesOutput output) throws TiesException;
+
+    void handle(TiesServiceScopeConsumer consumer, TiesOutput output) throws TiesException;
 
     TiesVersion getVersion();
 

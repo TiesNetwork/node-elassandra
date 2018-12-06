@@ -18,39 +18,46 @@
  */
 package network.tiesdb.transport.impl.ws;
 
-import java.net.URI;
+import java.security.cert.CertificateException;
+
+import javax.net.ssl.SSLException;
 
 import network.tiesdb.exception.TiesConfigurationException;
-import network.tiesdb.service.api.TiesService;
-import network.tiesdb.transport.api.TiesTransportClient;
-import network.tiesdb.transport.api.TiesTransportFactory;
+import network.tiesdb.exception.TiesException;
+import network.tiesdb.transport.api.TiesTransport;
 import network.tiesdb.transport.api.TiesTransportServer;
+import network.tiesdb.transport.impl.ws.netty.WebSocketServer;
 
 /**
- * TiesDB transport factory implementation.
+ * TiesDB WebSock transport daemon implementation.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public class TiesTransportFactoryImpl implements TiesTransportFactory {
+public class TiesTransportServerImpl implements TiesTransportServer {
 
-    private final TiesTransportConfigImpl config;
+    private final WebSocketServer server;
 
-    public TiesTransportFactoryImpl(TiesTransportConfigImpl config) {
-        this.config = config;
+    public TiesTransportServerImpl(TiesTransportImpl transport) throws TiesConfigurationException {
+        this.server = new WebSocketServer(transport);
     }
 
     @Override
-    public TiesTransportServer createTransportServer(TiesService service) throws TiesConfigurationException {
-        return new TiesTransportServerImpl(newTransport(service));
+    public void init() throws TiesException {
+        server.init();
     }
 
     @Override
-    public TiesTransportClient createTransportClient(TiesService service, URI destination) throws TiesConfigurationException {
-        return new TiesTransportClientImpl(newTransport(service), destination);
+    public void start() throws TiesException {
+        try {
+            server.start();
+        } catch (CertificateException | SSLException | InterruptedException e) {
+            throw new TiesException("Can't start TiesDB Transport daemon", e);
+        }
     }
 
-    private TiesTransportImpl newTransport(TiesService service) {
-        return new TiesTransportImpl(service, config);
+    @Override
+    public void stop() throws TiesException {
+        server.stop();
     }
 
 }

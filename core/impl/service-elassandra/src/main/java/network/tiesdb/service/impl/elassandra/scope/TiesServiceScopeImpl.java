@@ -81,6 +81,7 @@ import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Funct
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Function.Argument;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Selector;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Result;
+import network.tiesdb.service.scope.api.TiesServiceScopeResult;
 import network.tiesdb.service.scope.api.TiesServiceScopeSchema;
 import network.tiesdb.service.scope.api.TiesServiceScopeSchema.FieldSchema;
 
@@ -526,6 +527,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             }
             throw new TiesServiceScopeException("Insertion failed");
         }
+        modificationRequest.addResult(new TiesServiceScopeModification.Result.Success() {
+            @Override
+            public byte[] getHeaderHash() {
+                return entry.getHeader().getHash();
+            }
+        });
     }
 
     @Override
@@ -700,6 +707,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         } else if (!result.one().getBoolean("[applied]")) {
             throw new TiesServiceScopeException("Update failed");
         }
+        modificationRequest.addResult(new TiesServiceScopeModification.Result.Success() {
+            @Override
+            public byte[] getHeaderHash() {
+                return entry.getHeader().getHash();
+            }
+        });
     }
 
     @Override
@@ -859,6 +872,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         } else if (!result.one().getBoolean("[applied]")) {
             throw new TiesServiceScopeException("Delete failed");
         }
+        modificationRequest.addResult(new TiesServiceScopeModification.Result.Success() {
+            @Override
+            public byte[] getHeaderHash() {
+                return entry.getHeader().getHash();
+            }
+        });
     }
 
     @Override
@@ -1090,7 +1109,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             TiesSchemaUtil.loadFieldDescriptions(tablespaceName, tableName, fd -> {
                 LOG.debug("Field `{}`.`{}`.`{}`:{}", tablespaceName, tableName, fd.getName(), fd.getType());
                 try {
-                    query.addResult(new FieldSchema() {
+                    query.addFieldSchema(new FieldSchema() {
 
                         private final boolean primary = partKeyColumnsNameIds.contains(getNameId("FLD", fd.getName()));
 
@@ -1323,6 +1342,11 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             forArguments(v, qb, fun.getArguments());
         }
         qb.append(')');
+    }
+
+    @Override
+    public void result(TiesServiceScopeResult result) throws TiesServiceScopeException {
+        throw new TiesServiceScopeException("Node should not handle any result");
     }
 
 }

@@ -16,20 +16,38 @@
  * You should have received a copy of the GNU General Public License along
  * with Ties.DB project. If not, see <https://www.gnu.org/licenses/lgpl-3.0>.
  */
-package network.tiesdb.transport.api;
+package network.tiesdb.transport.impl.ws.netty;
 
 import java.io.InputStream;
 
+import io.netty.buffer.ByteBufInputStream;
+import io.netty.handler.codec.http.websocketx.WebSocketFrame;
+import network.tiesdb.transport.api.TiesInput;
+
 /**
- * TiesDB request API.
- * 
- * <P>
- * Defines common request functions.
+ * TiesDB request handler for WebSock.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public interface TiesRequest {
+public class WebSocketInputHandler implements TiesInput, AutoCloseable {
 
-    InputStream getInputStream();
+    private final InputStream is;
+
+    public WebSocketInputHandler(WebSocketFrame frame) {
+        if (null == frame) {
+            throw new NullPointerException("The frame should not be null");
+        }
+        this.is = new ByteBufInputStream(frame.content());
+    }
+
+    @Override
+    public InputStream getInputStream() {
+        return is;
+    }
+
+    @Override
+    public void close() throws Exception {
+        is.close();
+    }
 
 }

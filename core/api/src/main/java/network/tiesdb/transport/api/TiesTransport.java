@@ -19,7 +19,6 @@
 package network.tiesdb.transport.api;
 
 import network.tiesdb.api.TiesVersion;
-import network.tiesdb.context.api.TiesTransportConfig;
 import network.tiesdb.handler.api.TiesHandler;
 
 /**
@@ -32,11 +31,7 @@ import network.tiesdb.handler.api.TiesHandler;
  */
 public interface TiesTransport {
 
-    TiesTransportDaemon getDaemon();
-
-    TiesHandler getHandler();
-
-    TiesTransportConfig getTiesTransportConfig();
+    //TiesHandler getHandler();
 
     TiesVersion getVersion();
 

@@ -41,8 +41,8 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import network.tiesdb.context.api.TiesTransportConfig;
 import network.tiesdb.exception.util.MessageHelper;
-import network.tiesdb.transport.api.TiesTransport;
 import network.tiesdb.transport.impl.ws.TiesTransportConfigImpl;
+import network.tiesdb.transport.impl.ws.TiesTransportImpl;
 
 /**
  * A HTTP server which serves Web Socket requests at:
@@ -69,7 +69,7 @@ public class WebSocketServer {
 
     private static final Logger logger = LoggerFactory.getLogger(WebSocketServer.class);
 
-    private final TiesTransport transport;
+    private final TiesTransportImpl transport;
     private AtomicReference<SafeConfig> configRef = new AtomicReference<>();
     private AtomicReference<ChannelGroupManager> managerRef = new AtomicReference<>();
 
@@ -153,7 +153,7 @@ public class WebSocketServer {
         }
     }
 
-    public WebSocketServer(TiesTransport transport) {
+    public WebSocketServer(TiesTransportImpl transport) {
         if (null == transport) {
             throw new NullPointerException("The transport should not be null");
         }

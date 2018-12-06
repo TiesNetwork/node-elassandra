@@ -18,46 +18,64 @@
  */
 package network.tiesdb.transport.impl.ws;
 
-import network.tiesdb.context.api.TiesTransportConfig;
+import java.net.URI;
+
 import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.exception.TiesException;
 import network.tiesdb.service.api.TiesService;
+import network.tiesdb.service.scope.api.TiesServiceScopeConsumer;
 import network.tiesdb.transport.api.TiesTransport;
-import network.tiesdb.transport.api.TiesTransportDaemon;
+import network.tiesdb.transport.api.TiesTransportClient;
+import network.tiesdb.transport.impl.ws.netty.WebSocketClient;
 
 /**
  * TiesDB WebSock transport daemon implementation.
  * 
  * @author Anton Filatov (filatov@ties.network)
  */
-public class TiesTransportDaemonImpl extends TiesTransportImpl implements TiesTransportDaemon {
+public class TiesTransportClientImpl implements TiesTransportClient {
 
-    public TiesTransportDaemonImpl(TiesService service, TiesTransportConfig config) throws TiesConfigurationException {
-        super(service, config);
-    }
+    private final WebSocketClient client;
 
-    @Override
-    public TiesTransport getTiesTransport() throws TiesConfigurationException {
-        return this;
+    public TiesTransportClientImpl(TiesTransportImpl transport, URI uri) throws TiesConfigurationException {
+        this.client = new WebSocketClient(transport, uri);
     }
 
     @Override
     public void init() throws TiesException {
-        super.initInternal();
+        client.init();
     }
 
     @Override
     public void start() throws TiesException {
-        super.startInternal();
+        try {
+            client.open();
+        } catch (InterruptedException e) {
+            throw new TiesException("Can't start TiesDB Transport client", e);
+        }
     }
 
     @Override
     public void stop() throws TiesException {
-        super.stopInternal();
+        try {
+            client.close();
+        } catch (InterruptedException e) {
+            throw new TiesException("Can't stop TiesDB Transport client", e);
+        }
     }
 
     @Override
-    public TiesTransportDaemon getDaemon() {
+    public void request(TiesServiceScopeConsumer consumer) throws TiesException {
+        try {
+            client.request(consumer);
+        } catch (Exception e) {
+            throw new TiesException("Request failed", e);
+        }
+    }
+
+    @Override
+    public TiesTransportClient check() throws TiesException {
+        client.check();
         return this;
     }
 

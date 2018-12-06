@@ -18,7 +18,7 @@
  */
 package network.tiesdb.service.impl.elassandra;
 
-import static network.tiesdb.util.Safecheck.nullsafe;
+import static java.util.Objects.requireNonNull;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,13 +35,13 @@ import network.tiesdb.context.api.TiesTransportConfig;
 import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.exception.TiesException;
 import network.tiesdb.schema.api.TiesSchema;
+import network.tiesdb.schema.api.TiesSchemaFactory;
 import network.tiesdb.service.api.TiesService;
 import network.tiesdb.service.impl.elassandra.schema.TiesServiceSchemaImpl;
 import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeImpl;
 import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil;
 import network.tiesdb.service.scope.api.TiesServiceScope;
-import network.tiesdb.transport.api.TiesTransport;
-import network.tiesdb.transport.api.TiesTransportDaemon;
+import network.tiesdb.transport.api.TiesTransportServer;
 
 /**
  * TiesDB service implementation.
@@ -56,18 +56,15 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
 
     protected final TiesServiceConfig config;
 
-    protected final String name;
-
-    private final AtomicReference<List<TiesTransport>> transportsRef = new AtomicReference<>();
+    private final AtomicReference<List<TiesTransportServer>> transportsRef = new AtomicReference<>();
     private final AtomicReference<TiesServiceSchemaImpl> schemaImplRef = new AtomicReference<>();
     private final TiesMigrationListenerImpl migrationListener;
 
-    public TiesServiceImpl(String name, TiesServiceConfig config) {
+    public TiesServiceImpl(TiesServiceConfig config) {
         if (null == config) {
             throw new NullPointerException("The config should not be null");
         }
         this.config = config;
-        this.name = name;
         this.migrationListener = createTiesMigrationListener();
     }
 
@@ -100,7 +97,9 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
         if (null == schemaConfig) {
             throw new TiesConfigurationException("No TiesDB Schema configuration found");
         }
-        TiesSchema schema = schemaConfig.getTiesSchemaFactory().createSchema(this);
+        TiesSchemaFactory schemaFactory = schemaConfig.getTiesSchemaFactory();
+        requireNonNull(schemaFactory, "TiesDB Schema Factory not found");
+        TiesSchema schema = schemaFactory.createSchema(this);
         TiesServiceSchemaImpl schemaImpl = new TiesServiceSchemaImpl(schema);
         if (!schemaImplRef.compareAndSet(null, schemaImpl)) {
             throw new TiesConfigurationException("TiesDB Schema have already been initialized");
@@ -116,12 +115,11 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
     protected void initTransportDaemons() throws TiesConfigurationException {
         logger.trace("Creating TiesDB Service Transport Daemons...");
         List<TiesTransportConfig> transportsConfigs = config.getTransportConfigs();
-        List<TiesTransport> transports = new ArrayList<>(transportsConfigs.size());
+        List<TiesTransportServer> transports = new ArrayList<>(transportsConfigs.size());
         for (TiesTransportConfig tiesTransportConfig : transportsConfigs) {
             try {
-                TiesTransportDaemon transportDaemon = tiesTransportConfig.getTiesTransportFactory().createTransportDaemon(this,
-                        tiesTransportConfig);
-                transports.add(transportDaemon.getTiesTransport());
+                TiesTransportServer transportDaemon = tiesTransportConfig.getTiesTransportFactory().createTransportServer(this);
+                transports.add(transportDaemon);
             } catch (TiesConfigurationException e) {
                 logger.error("Failed to create TiesDB Transport Daemon", e);
             }
@@ -168,14 +166,13 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
 
     private void startTiesTransports() throws TiesConfigurationException {
         logger.trace("Starting TiesDB Service Transports...");
-        List<TiesTransport> transports = transportsRef.get();
+        List<TiesTransportServer> transports = transportsRef.get();
         if (null == transports) {
             throw new TiesConfigurationException("No TiesDB Service Transports to start");
         } else {
             int count = 0;
-            for (TiesTransport tiesTransport : transports) {
+            for (TiesTransportServer daemon : transports) {
                 try {
-                    TiesTransportDaemon daemon = nullsafe(tiesTransport.getDaemon());
                     daemon.init();
                     daemon.start();
                     count++;
@@ -191,13 +188,13 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
 
     private void stopTiesTransports() {
         logger.trace("Stopping TiesDB Service Transports...");
-        List<TiesTransport> transports = transportsRef.get();
+        List<TiesTransportServer> transports = transportsRef.get();
         if (null == transports) {
             logger.trace("No TiesDB Service Transports to stop");
         } else {
-            for (TiesTransport tiesTransport : transports) {
+            for (TiesTransportServer daemon : transports) {
                 try {
-                    nullsafe(tiesTransport.getDaemon()).stop();
+                    daemon.stop();
                 } catch (Throwable e) {
                     logger.error("Failed to stop TiesDB Transport", e);
                 }
