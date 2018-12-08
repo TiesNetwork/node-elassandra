@@ -94,6 +94,6 @@ public interface TiesServiceScopeModification extends TiesServiceScopeAction, Ti
 
     Entry getEntry();
 
-    void addResult(Result result) throws TiesServiceScopeException;
+    void setResult(Result result) throws TiesServiceScopeException;
 
 }

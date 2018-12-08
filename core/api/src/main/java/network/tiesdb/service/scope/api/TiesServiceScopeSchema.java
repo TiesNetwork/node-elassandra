@@ -18,15 +18,22 @@
  */
 package network.tiesdb.service.scope.api;
 
+import java.util.List;
+
 public interface TiesServiceScopeSchema extends TiesServiceScopeAction {
 
     interface FieldSchema {
 
-        String getFieldName();
+        interface Field {
 
-        String getFieldType();
+            String getFieldName();
 
-        boolean isPrimary();
+            String getFieldType();
+
+            boolean isPrimary();
+        }
+
+        List<Field> getFields();
 
     }
 
@@ -34,5 +41,5 @@ public interface TiesServiceScopeSchema extends TiesServiceScopeAction {
 
     String getTableName();
 
-    void addFieldSchema(FieldSchema field) throws TiesServiceScopeException;
+    void setResult(FieldSchema fieldSchema) throws TiesServiceScopeException;
 }

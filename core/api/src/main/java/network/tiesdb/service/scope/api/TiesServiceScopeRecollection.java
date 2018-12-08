@@ -55,8 +55,8 @@ public interface TiesServiceScopeRecollection extends TiesServiceScopeAction, Ti
                 interface FunctionArgument extends Function, Argument {
 
                     @Override
-                    default void accept(Visitor v) throws TiesServiceScopeException {
-                        v.on(this);
+                    default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                        return v.on(this);
                     }
 
                 }
@@ -64,8 +64,8 @@ public interface TiesServiceScopeRecollection extends TiesServiceScopeAction, Ti
                 interface FieldArgument extends Field, Argument {
 
                     @Override
-                    default void accept(Visitor v) throws TiesServiceScopeException {
-                        v.on(this);
+                    default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                        return v.on(this);
                     }
 
                 }
@@ -73,23 +73,23 @@ public interface TiesServiceScopeRecollection extends TiesServiceScopeAction, Ti
                 interface ValueArgument extends Value, Argument {
 
                     @Override
-                    default void accept(Visitor v) throws TiesServiceScopeException {
-                        v.on(this);
+                    default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                        return v.on(this);
                     }
 
                 }
 
-                interface Visitor {
+                interface Visitor<T> {
 
-                    void on(FunctionArgument a) throws TiesServiceScopeException;
+                    T on(FunctionArgument a) throws TiesServiceScopeException;
 
-                    void on(ValueArgument a) throws TiesServiceScopeException;
+                    T on(ValueArgument a) throws TiesServiceScopeException;
 
-                    void on(FieldArgument a) throws TiesServiceScopeException;
+                    T on(FieldArgument a) throws TiesServiceScopeException;
 
                 }
 
-                void accept(Visitor v) throws TiesServiceScopeException;
+                <T> T accept(Visitor<T> v) throws TiesServiceScopeException;
 
             }
 
@@ -108,8 +108,8 @@ public interface TiesServiceScopeRecollection extends TiesServiceScopeAction, Ti
                 String getType();
 
                 @Override
-                default void accept(Visitor v) throws TiesServiceScopeException {
-                    v.on(this);
+                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                    return v.on(this);
                 }
 
             }
@@ -117,21 +117,21 @@ public interface TiesServiceScopeRecollection extends TiesServiceScopeAction, Ti
             interface FieldSelector extends Field, Selector {
 
                 @Override
-                default void accept(Visitor v) throws TiesServiceScopeException {
-                    v.on(this);
+                default <T> T accept(Visitor<T> v) throws TiesServiceScopeException {
+                    return v.on(this);
                 }
 
             }
 
-            interface Visitor {
+            interface Visitor<T> {
 
-                void on(FunctionSelector s) throws TiesServiceScopeException;
+                T on(FunctionSelector s) throws TiesServiceScopeException;
 
-                void on(FieldSelector s) throws TiesServiceScopeException;
+                T on(FieldSelector s) throws TiesServiceScopeException;
 
             }
 
-            void accept(Visitor v) throws TiesServiceScopeException;
+            <T> T accept(Visitor<T> v) throws TiesServiceScopeException;
         }
 
         interface Filter extends Function {
@@ -198,17 +198,22 @@ public interface TiesServiceScopeRecollection extends TiesServiceScopeAction, Ti
 
         }
 
-        TiesEntryHeader getEntryHeader();
+        interface Entry {
 
-        List<Field> getEntryFields();
+            TiesEntryHeader getEntryHeader();
 
-        List<Field> getComputedFields();
+            List<Field> getEntryFields();
+
+            List<Field> getComputedFields();
+        }
 
         default <T> T accept(TiesServiceScopeResult.Result.Visitor<T> v) throws TiesServiceScopeException {
             return v.on(this);
         }
 
+        List<Entry> getEntries();
+
     }
 
-    void addResult(Result result) throws TiesServiceScopeException;
+    void setResult(Result result) throws TiesServiceScopeException;
 }

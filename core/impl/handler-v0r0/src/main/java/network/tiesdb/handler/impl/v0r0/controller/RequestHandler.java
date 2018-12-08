@@ -110,8 +110,8 @@ public class RequestHandler implements Request.Visitor<Response> {
         responseWriter.accept(session, processRequest(request));
     }
 
-    public RecollectionResult convertRecollectionResult(RecollectionRequest request, Result result) {
-        TiesEntryHeader resultHeader = result.getEntryHeader();
+    public RecollectionResult convertRecollectionResultEntry(RecollectionRequest request, Result.Entry entry) {
+        TiesEntryHeader resultHeader = entry.getEntryHeader();
         EntryHeader entryHeader = new EntryHeader() {
 
             @Override
@@ -162,7 +162,7 @@ public class RequestHandler implements Request.Visitor<Response> {
 
         Multiple<Field> entryFields;
         {
-            List<Result.Field> entryResultFields = result.getEntryFields();
+            List<Result.Field> entryResultFields = entry.getEntryFields();
             entryFields = new Multiple<Field>() {
                 @Override
                 public Iterator<Field> iterator() {
@@ -178,7 +178,7 @@ public class RequestHandler implements Request.Visitor<Response> {
 
         Multiple<Field> computedFields;
         {
-            List<Result.Field> computedResultFields = result.getComputedFields();
+            List<Result.Field> computedResultFields = entry.getComputedFields();
             computedFields = new Multiple<Field>() {
                 @Override
                 public Iterator<Field> iterator() {
@@ -488,7 +488,7 @@ public class RequestHandler implements Request.Visitor<Response> {
                         }
 
                         @Override
-                        public void addResult(Result result) throws TiesServiceScopeException {
+                        public void setResult(Result result) throws TiesServiceScopeException {
                             results.add(result);
                         }
 
@@ -514,7 +514,7 @@ public class RequestHandler implements Request.Visitor<Response> {
                         }
 
                         @Override
-                        public void addResult(Result result) throws TiesServiceScopeException {
+                        public void setResult(Result result) throws TiesServiceScopeException {
                             results.add(result);
                         }
 
@@ -540,7 +540,7 @@ public class RequestHandler implements Request.Visitor<Response> {
                         }
 
                         @Override
-                        public void addResult(Result result) throws TiesServiceScopeException {
+                        public void setResult(Result result) throws TiesServiceScopeException {
                             results.add(result);
                         }
 
@@ -744,11 +744,9 @@ public class RequestHandler implements Request.Visitor<Response> {
                 }
 
                 @Override
-                public void addResult(Result r) throws TiesServiceScopeException {
+                public void setResult(Result r) throws TiesServiceScopeException {
                     LOG.debug("AddedResult {}", r);
-                    RecollectionResult result = convertRecollectionResult(request, r);
-                    LOG.debug("ConvertedResult {}", result);
-                    results.add(result);
+                    r.getEntries().stream().map(entry -> convertRecollectionResultEntry(request, entry)).forEach(results::add);
                 }
 
                 @Override
@@ -814,35 +812,38 @@ public class RequestHandler implements Request.Visitor<Response> {
                 }
 
                 @Override
-                public void addFieldSchema(FieldSchema field) throws TiesServiceScopeException {
-                    schemaFields.add(new SchemaField() {
-
-                        @Override
-                        public String getType() {
-                            return field.getFieldType();
-                        }
-
-                        @Override
-                        public String getName() {
-                            return field.getFieldName();
-                        }
-
-                        @Override
-                        public boolean isPrimary() {
-                            return field.isPrimary();
-                        }
-
-                        @Override
-                        public String toString() {
-                            return "SchemaField [" + (isPrimary() ? "primary, " : "") + "name=" + getName() + ", type=" + getType() + "]";
-                        }
-
-                    });
+                public BigInteger getMessageId() {
+                    return messageId;
                 }
 
                 @Override
-                public BigInteger getMessageId() {
-                    return messageId;
+                public void setResult(FieldSchema fieldSchema) throws TiesServiceScopeException {
+                    fieldSchema.getFields().forEach(field -> {
+                        schemaFields.add(new SchemaField() {
+
+                            @Override
+                            public String getType() {
+                                return field.getFieldType();
+                            }
+
+                            @Override
+                            public String getName() {
+                                return field.getFieldName();
+                            }
+
+                            @Override
+                            public boolean isPrimary() {
+                                return field.isPrimary();
+                            }
+
+                            @Override
+                            public String toString() {
+                                return "SchemaField [" + (isPrimary() ? "primary, " : "") + "name=" + getName() + ", type=" + getType()
+                                        + "]";
+                            }
+
+                        });
+                    });
                 }
             });
         } catch (TiesServiceScopeException e) {

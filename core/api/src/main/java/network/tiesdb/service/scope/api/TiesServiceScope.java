@@ -32,10 +32,10 @@ public interface TiesServiceScope extends Closeable {
 
     void delete(TiesServiceScopeModification action) throws TiesServiceScopeException;
 
-    void select(TiesServiceScopeRecollection query) throws TiesServiceScopeException;
+    void select(TiesServiceScopeRecollection action) throws TiesServiceScopeException;
 
-    void schema(TiesServiceScopeSchema query) throws TiesServiceScopeException;
+    void schema(TiesServiceScopeSchema action) throws TiesServiceScopeException;
 
-    void result(TiesServiceScopeResult result) throws TiesServiceScopeException;
+    void result(TiesServiceScopeResult action) throws TiesServiceScopeException;
 
 }

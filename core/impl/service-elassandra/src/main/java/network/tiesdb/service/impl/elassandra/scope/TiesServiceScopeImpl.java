@@ -527,7 +527,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             }
             throw new TiesServiceScopeException("Insertion failed");
         }
-        modificationRequest.addResult(new TiesServiceScopeModification.Result.Success() {
+        modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
                 return entry.getHeader().getHash();
@@ -707,7 +707,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         } else if (!result.one().getBoolean("[applied]")) {
             throw new TiesServiceScopeException("Update failed");
         }
-        modificationRequest.addResult(new TiesServiceScopeModification.Result.Success() {
+        modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
                 return entry.getHeader().getHash();
@@ -872,7 +872,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         } else if (!result.one().getBoolean("[applied]")) {
             throw new TiesServiceScopeException("Delete failed");
         }
-        modificationRequest.addResult(new TiesServiceScopeModification.Result.Success() {
+        modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
                 return entry.getHeader().getHash();
@@ -903,24 +903,27 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         List<Object> qv = new LinkedList<>();
         StringBuilder qb = new StringBuilder();
 
-        Argument.Visitor argVisitor = new Argument.Visitor() {
+        Argument.Visitor<?> argVisitor = new Argument.Visitor<Void>() {
 
             @Override
-            public void on(Argument.FunctionArgument a) throws TiesServiceScopeException {
+            public Void on(Argument.FunctionArgument a) throws TiesServiceScopeException {
                 forFunction(this, qb, a);
+                return null;
             }
 
             @Override
-            public void on(Argument.ValueArgument a) throws TiesServiceScopeException {
+            public Void on(Argument.ValueArgument a) throws TiesServiceScopeException {
                 qv.add(a.getValue());
                 qb.append('?');
+                return null;
             }
 
             @Override
-            public void on(Argument.FieldArgument a) {
+            public Void on(Argument.FieldArgument a) {
                 qb.append('"');
                 qb.append(getNameId("FLD", a.getFieldName()));
                 qb.append('"');
+                return null;
             }
 
         };
@@ -966,10 +969,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             Map<String, String> selectedFields = new HashMap<>();
 
             for (Selector sel : selectors) {
-                sel.accept(new Selector.Visitor() {
+                sel.accept(new Selector.Visitor<Void>() {
 
                     @Override
-                    public void on(Selector.FunctionSelector s) throws TiesServiceScopeException {
+                    public Void on(Selector.FunctionSelector s) throws TiesServiceScopeException {
                         String aliasName = s.getAlias();
                         aliasName = null != aliasName ? aliasName : s.getName();
                         String aliasNameId = "COM" + tiesComputesCounter.incrementAndGet();
@@ -980,16 +983,18 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                         qb.append(" as \"");
                         qb.append(aliasNameId);
                         qb.append('"');
+                        return null;
                     }
 
                     @Override
-                    public void on(Selector.FieldSelector s) {
+                    public Void on(Selector.FieldSelector s) {
                         String fieldName = s.getFieldName();
                         String fieldNameId = getNameId("VAL", fieldName);
                         qb.append('"');
                         qb.append(fieldNameId);
                         qb.append('"');
                         selectedFields.put(fieldName, fieldNameId);
+                        return null;
                     }
 
                 });
@@ -1058,9 +1063,18 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 }
             }
         }
+        List<Result.Entry> entryList = new LinkedList<>();
         for (UntypedResultSet.Row row : result) {
-            scope.addResult(newResult(row, newEntryHeader(row, cfMetaData), tiesFields, tiesComputes, fieldMap, aliasMap));
+            entryList.add(newResult(row, newEntryHeader(row, cfMetaData), tiesFields, tiesComputes, fieldMap, aliasMap));
         }
+        scope.setResult(new Result() {
+
+            @Override
+            public List<Entry> getEntries() {
+                return entryList;
+            }
+
+        });
     }
 
     private static final class TiesServiceScopeExceptionWrapper extends RuntimeException {
@@ -1106,27 +1120,36 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         }
 
         try {
+            List<FieldSchema.Field> fieldList = new LinkedList<>();
             TiesSchemaUtil.loadFieldDescriptions(tablespaceName, tableName, fd -> {
                 LOG.debug("Field `{}`.`{}`.`{}`:{}", tablespaceName, tableName, fd.getName(), fd.getType());
+                fieldList.add(new FieldSchema.Field() {
+
+                    private final boolean primary = partKeyColumnsNameIds.contains(getNameId("FLD", fd.getName()));
+
+                    @Override
+                    public String getFieldType() {
+                        return fd.getName();
+                    }
+
+                    @Override
+                    public String getFieldName() {
+                        return fd.getType();
+                    }
+
+                    @Override
+                    public boolean isPrimary() {
+                        return primary;
+                    }
+                });
                 try {
-                    query.addFieldSchema(new FieldSchema() {
-
-                        private final boolean primary = partKeyColumnsNameIds.contains(getNameId("FLD", fd.getName()));
+                    query.setResult(new FieldSchema() {
 
                         @Override
-                        public String getFieldType() {
-                            return fd.getName();
+                        public List<Field> getFields() {
+                            return fieldList;
                         }
 
-                        @Override
-                        public String getFieldName() {
-                            return fd.getType();
-                        }
-
-                        @Override
-                        public boolean isPrimary() {
-                            return primary;
-                        }
                     });
                 } catch (TiesServiceScopeException e) {
                     throw new TiesServiceScopeExceptionWrapper(e);
@@ -1209,7 +1232,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         return format.compose(components[type.fieldPosition(FieldIdentifier.forUnquoted(field.name()))]);
     }
 
-    private static Result newResult(Row row, TiesEntryHeader entryHeader, List<FieldDescription> tiesFields,
+    private static Result.Entry newResult(Row row, TiesEntryHeader entryHeader, List<FieldDescription> tiesFields,
             List<FieldDescription> tiesComputes, Map<FieldDescription, String> fieldMap, Map<FieldDescription, String> aliasMap)
             throws TiesServiceScopeException {
 
@@ -1264,7 +1287,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             }
         }
 
-        return new Result() {
+        return new Result.Entry() {
 
             @Override
             public TiesEntryHeader getEntryHeader() {
@@ -1272,12 +1295,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             }
 
             @Override
-            public List<Field> getEntryFields() {
+            public List<Result.Field> getEntryFields() {
                 return entryFields;
             }
 
             @Override
-            public List<Field> getComputedFields() {
+            public List<Result.Field> getComputedFields() {
                 return computedFields;
             }
 
@@ -1293,15 +1316,15 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         return o.toString();
     }
 
-    private static void forArguments(Argument.Visitor v, StringBuilder qb, List<Argument> arguments) throws TiesServiceScopeException {
-        for (Argument arg : arguments) {
+    private static <T> void forArguments(Argument.Visitor<T> v, StringBuilder qb, List<Argument> args) throws TiesServiceScopeException {
+        for (Argument arg : args) {
             arg.accept(v);
             qb.append(',');
         }
         qb.setLength(qb.length() - 1);
     }
 
-    private static void forFilter(Argument.Visitor v, StringBuilder qb, Filter fil) throws TiesServiceScopeException {
+    private static <T> void forFilter(Argument.Visitor<T> v, StringBuilder qb, Filter fil) throws TiesServiceScopeException {
         String fieldNameId = getNameId("FLD", fil.getFieldName());
         qb.append(fieldNameId);
         qb.append("\" ");
@@ -1319,7 +1342,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         }
     }
 
-    private static void forFunction(Argument.Visitor v, StringBuilder qb, Function fun) throws TiesServiceScopeException {
+    private static <T> void forFunction(Argument.Visitor<T> v, StringBuilder qb, Function fun) throws TiesServiceScopeException {
         String fName = fun.getName();
         qb.append(fName);
         qb.append('(');
