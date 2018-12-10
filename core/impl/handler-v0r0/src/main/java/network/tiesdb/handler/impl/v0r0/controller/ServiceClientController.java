@@ -104,11 +104,25 @@ public class ServiceClientController implements TiesServiceScope {
 
     @Override
     public void close() throws IOException {
-        // NOP
+        this.session.close();
     }
 
     @Override
     public void insert(TiesServiceScopeModification action) throws TiesServiceScopeException {
+        modify(action);
+    }
+
+    @Override
+    public void update(TiesServiceScopeModification action) throws TiesServiceScopeException {
+        modify(action);
+    }
+
+    @Override
+    public void delete(TiesServiceScopeModification action) throws TiesServiceScopeException {
+        modify(action);
+    }
+
+    private void modify(TiesServiceScopeModification action) throws TiesServiceScopeException {
         try {
             Entry entry = action.getEntry();
             if (null == entry) {
@@ -272,18 +286,6 @@ public class ServiceClientController implements TiesServiceScope {
     }
 
     @Override
-    public void update(TiesServiceScopeModification action) throws TiesServiceScopeException {
-        // TODO Auto-generated method stub
-        throw new TiesServiceScopeException("Not implemented");
-    }
-
-    @Override
-    public void delete(TiesServiceScopeModification action) throws TiesServiceScopeException {
-        // TODO Auto-generated method stub
-        throw new TiesServiceScopeException("Not implemented");
-    }
-
-    @Override
     public void select(TiesServiceScopeRecollection action) throws TiesServiceScopeException {
         Query query = action.getQuery();
         if (null == query) {
@@ -302,7 +304,8 @@ public class ServiceClientController implements TiesServiceScope {
                                     return selector.accept(new Query.Selector.Visitor<RecollectionRequest.Retrieve>() {
 
                                         @Override
-                                        public RecollectionRequest.Retrieve on(FieldSelector fieldSelector) throws TiesServiceScopeException {
+                                        public RecollectionRequest.Retrieve on(FieldSelector fieldSelector)
+                                                throws TiesServiceScopeException {
                                             return new RecollectionRequest.Retrieve.Field() {
                                                 @Override
                                                 public String getFieldName() {
@@ -312,10 +315,12 @@ public class ServiceClientController implements TiesServiceScope {
                                         }
 
                                         @Override
-                                        public RecollectionRequest.Retrieve on(FunctionSelector functionSelector) throws TiesServiceScopeException {
+                                        public RecollectionRequest.Retrieve on(FunctionSelector functionSelector)
+                                                throws TiesServiceScopeException {
                                             return new RecollectionRequest.Retrieve.Compute() {
 
-                                                private final List<Argument> arguments = convertFunctionArguments(functionSelector.getArguments());
+                                                private final List<Argument> arguments = convertFunctionArguments(
+                                                        functionSelector.getArguments());
 
                                                 @Override
                                                 public String getName() {
