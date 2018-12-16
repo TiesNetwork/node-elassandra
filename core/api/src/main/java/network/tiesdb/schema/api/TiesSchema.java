@@ -53,6 +53,8 @@ public interface TiesSchema {
 
         Set<Index> getIndexes();
 
+        Set<String> getNodeAddresses();
+
         boolean isDistributed();
 
     }

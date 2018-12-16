@@ -65,4 +65,9 @@ public class TableImpl implements TiesSchema.Table {
         return t.isDistributed();
     }
 
+    @Override
+    public Set<String> getNodeAddresses() {
+        return t.getNodes().keySet().stream().map(a -> a.toChecksumedString()).collect(Collectors.toSet());
+    }
+
 }
