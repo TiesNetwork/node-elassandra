@@ -31,10 +31,11 @@
         <version>0.1.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>core</artifactId>
+    <groupId>com.tiesdb.node</groupId>
+    <artifactId>core-parent</artifactId>
     <packaging>pom</packaging>
 
-    <name>TiesDB Core</name>
+    <name>TiesDB Node Core Parent</name>
     <description>TiesDB is a distributed decentralized database linked to Ethereum blockchain</description>
     <inceptionYear>2017</inceptionYear>
 
@@ -63,8 +64,6 @@
     -->
 
     <modules>
-        <module>api</module>
-        <module>util</module>
         <module>impl</module>
     </modules>
 

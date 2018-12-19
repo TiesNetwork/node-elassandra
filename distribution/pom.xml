@@ -54,16 +54,16 @@
         </dependency>
         <dependency>
             <groupId>com.tiesdb</groupId>
-            <artifactId>service-elassandra</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.tiesdb</groupId>
             <artifactId>schema-ethereum</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.tiesdb</groupId>
+            <groupId>com.tiesdb.node</groupId>
+            <artifactId>service-elassandra</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tiesdb.node</groupId>
             <artifactId>bootstrap-elassandra</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -101,7 +101,7 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-assembly-plugin</artifactId>
                     <configuration>
-                        <finalName>tiesdb-${project.version}</finalName>
+                        <finalName>tiesdb-coordinator-${project.version}</finalName>
                         <appendAssemblyId>false</appendAssemblyId>
                         <outputDirectory>${project.parent.parent.build.directory}/</outputDirectory>
                     </configuration>

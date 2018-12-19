@@ -26,15 +26,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.tiesdb</groupId>
-        <artifactId>core</artifactId>
+        <groupId>com.tiesdb.node</groupId>
+        <artifactId>core-parent</artifactId>
         <version>0.1.1-SNAPSHOT</version>
     </parent>
 
     <artifactId>core-impl</artifactId>
     <packaging>pom</packaging>
 
-    <name>TiesDB Core Implementation</name>
+    <name>TiesDB Node Core Implementation</name>
     <description>TiesDB basic implementations collection</description>
 
     <licenses>
@@ -53,7 +53,7 @@
 	            <version>${project.version}</version>
 	        </dependency>
 	        <dependency>
-	            <groupId>com.tiesdb</groupId>
+	            <groupId>com.tiesdb.lib</groupId>
 	            <artifactId>swissknife</artifactId>
 	            <version>${project.version}</version>
 	        </dependency>
@@ -61,12 +61,8 @@
     </dependencyManagement>
 
     <modules>
-        <module>context-yaml</module>
         <!-- <module>handler-json</module> -->
-        <module>handler-v0r0</module>
-        <module>transport-websocket</module>
         <module>service-elassandra</module>
-        <module>schema-ethereum</module>
         <module>bootstrap-elassandra</module>
     </modules>
 </project>
