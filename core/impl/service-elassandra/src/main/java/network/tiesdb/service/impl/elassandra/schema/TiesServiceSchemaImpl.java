@@ -95,7 +95,7 @@ public class TiesServiceSchemaImpl implements TiesDaemon {
         try {
             Table t = getTableFromSchema(tablespaceName, tableName);
 
-            if (!t.isDistributed()) {
+            if (!t.isDistributed() && null == System.getProperty("network.tiesdb.debug.SingleNode")) {
                 throw new IllegalStateException("TiesDB schema `" + tablespaceName + "`.`" + tableName + "` is not distributed");
             }
 
