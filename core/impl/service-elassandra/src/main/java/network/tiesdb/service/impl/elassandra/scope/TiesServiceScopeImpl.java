@@ -474,7 +474,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                     }
                     return insertResult;
                 }, () -> {
-                    LOG.trace("Inser failed trying to update...");
+                    LOG.trace("Insert failed trying to upsert...");
                     List<Object> allValues = new LinkedList<>();
                     allValues.addAll(fieldValues);
                     allValues.addAll(keyValues);
@@ -487,19 +487,19 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                             concat(fieldNames, " = ?, "), //
                             concat(keyNames, " = ? AND ") //
                     );
-                    LOG.debug("InsertUpdate query {}", query);
+                    LOG.debug("Upsert query {}", query);
 
-                    UntypedResultSet updateResult = QueryProcessor.execute(query, ConsistencyLevel.ALL, allValues.toArray());
+                    UntypedResultSet insertResult = QueryProcessor.execute(query, ConsistencyLevel.ALL, allValues.toArray());
                     if (LOG.isDebugEnabled()) {
-                        for (UntypedResultSet.Row row : updateResult) {
-                            LOG.debug("Update result row {}", row);
+                        for (UntypedResultSet.Row row : insertResult) {
+                            LOG.debug("Upsert result row {}", row);
                             for (ColumnSpecification col : row.getColumns()) {
                                 ByteBuffer bytes = row.getBlob(col.name.toString());
-                                LOG.debug("Update result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
+                                LOG.debug("Upsert result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
                             }
                         }
                     }
-                    return updateResult;
+                    return insertResult;
                 });
 
         if (result.isEmpty()) {
@@ -705,7 +705,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         } else if (result.size() > 1) {
             throw new TiesServiceScopeException("Multiple updates results found");
         } else if (!result.one().getBoolean("[applied]")) {
-            throw new TiesServiceScopeException("Update failed");
+            throw new TiesServiceScopeException("Update failed for " + entry);
         }
         modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
             @Override
@@ -881,9 +881,9 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
-    public void select(TiesServiceScopeRecollection scope) throws TiesServiceScopeException {
+    public void select(TiesServiceScopeRecollection recollectionRequest) throws TiesServiceScopeException {
 
-        Query request = scope.getQuery();
+        Query request = recollectionRequest.getQuery();
 
         String tablespaceName = request.getTablespaceName();
         String tableName = request.getTableName();
@@ -1067,7 +1067,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         for (UntypedResultSet.Row row : result) {
             entryList.add(newResult(row, newEntryHeader(row, cfMetaData), tiesFields, tiesComputes, fieldMap, aliasMap));
         }
-        scope.setResult(new Result() {
+        recollectionRequest.setResult(new Result() {
 
             @Override
             public List<Entry> getEntries() {
@@ -1095,10 +1095,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
-    public void schema(TiesServiceScopeSchema query) throws TiesServiceScopeException {
+    public void schema(TiesServiceScopeSchema schemaRequest) throws TiesServiceScopeException {
 
-        String tablespaceName = query.getTablespaceName();
-        String tableName = query.getTableName();
+        String tablespaceName = schemaRequest.getTablespaceName();
+        String tableName = schemaRequest.getTableName();
         LOG.debug("Schema for `{}`.`{}`", tablespaceName, tableName);
 
         String tablespaceNameId = getNameId("TIE", tablespaceName);
@@ -1143,7 +1143,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                     }
                 });
                 try {
-                    query.setResult(new FieldSchema() {
+                    schemaRequest.setResult(new FieldSchema() {
 
                         @Override
                         public List<Field> getFields() {
