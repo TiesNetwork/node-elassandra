@@ -59,6 +59,9 @@ import org.apache.cassandra.db.marshal.UserType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.tiesdb.lib.crypto.digest.DigestManager;
+import com.tiesdb.lib.crypto.digest.api.Digest;
+
 import network.tiesdb.api.TiesVersion;
 import network.tiesdb.service.impl.elassandra.TiesServiceImpl;
 import network.tiesdb.service.impl.elassandra.scope.db.ByteArrayType;
@@ -119,7 +122,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         }
 
         @Override
-        public Object getValue() {
+        public Object getFieldValue() {
             return value;
         }
 
@@ -147,6 +150,15 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         @Override
         public String toString() {
             return "ResultRawField [name=" + getName() + ", type=" + getType() + ", rawValue=" + rawValue + "]";
+        }
+
+        @Override
+        public byte[] getHash() {
+            Digest digest = DigestManager.getDigest(DigestManager.KECCAK_256);
+            digest.update(getValue());
+            byte[] hash = new byte[digest.getDigestSize()];
+            digest.doFinal(hash);
+            return hash;
         }
 
     }
