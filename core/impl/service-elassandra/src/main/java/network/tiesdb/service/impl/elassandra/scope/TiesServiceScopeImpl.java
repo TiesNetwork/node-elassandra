@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -128,7 +129,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         @Override
         public String toString() {
-            return "ResultValueField [name=" + getName() + ", type=" + getType() + ", value=" + value + "]";
+            return "ResultValueField [name=" + getName() + ", type=" + getType() + ", value" + printValue(value) + "]";
         }
 
     }
@@ -149,7 +150,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         @Override
         public String toString() {
-            return "ResultRawField [name=" + getName() + ", type=" + getType() + ", rawValue=" + rawValue + "]";
+            return "ResultRawField [name=" + getName() + ", type=" + getType() + ", rawValue" + printHexValue(rawValue) + "]";
         }
 
         @Override
@@ -161,6 +162,36 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             return hash;
         }
 
+    }
+
+    private static String printValue(Object value) {
+        if (null == value) {
+            return " is null";
+        }
+        if (value instanceof byte[]) {
+            printHexValue((byte[]) value);
+        }
+        return value.toString();
+    }
+
+    private static String printHexValue(byte[] value) {
+        if (null == value) {
+            return " is null";
+        }
+        return "=0x" + formatHexValue(value);
+    }
+
+    private static String formatHexValue(byte[] value) {
+        if (null == value) {
+            return "";
+        }
+        if (value.length <= 64) {
+            return DatatypeConverter.printHexBinary(value);
+        } else {
+            return DatatypeConverter.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
+                    + DatatypeConverter.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
+                    + "(" + value.length + ")";
+        }
     }
 
     private static class ResultHashField extends ResultField implements Result.Field.HashField {
@@ -179,8 +210,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         @Override
         public String toString() {
-            return "ResultHashField [name=" + getName() + ", type=" + getType() + ", hash=" + DatatypeConverter.printHexBinary(getHash())
-                    + "]";
+            return "ResultHashField [name=" + getName() + ", type=" + getType() + ", hash" + printHexValue(getHash()) + "]";
         }
 
     }
@@ -244,7 +274,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         case "STRING":
             return "\"" + new String(data) + "\"";
         default:
-            return "0x" + DatatypeConverter.printHexBinary(data).toLowerCase();
+            return formatHexValue(data);
         }
     }
 
@@ -1323,7 +1353,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         if (o instanceof ByteBuffer) {
             byte[] buf = new byte[((ByteBuffer) o).remaining()];
             ((ByteBuffer) o).slice().get(buf);
-            return DatatypeConverter.printHexBinary(buf);
+            return formatHexValue(buf);
         }
         return o.toString();
     }

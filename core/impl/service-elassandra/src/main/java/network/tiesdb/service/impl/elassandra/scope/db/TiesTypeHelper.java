@@ -24,9 +24,12 @@ import static network.tiesdb.type.Duration.DurationTimeUnit.NANOSECOND;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
+import javax.xml.bind.DatatypeConverter;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -64,6 +67,31 @@ public final class TiesTypeHelper {
 
     private TiesTypeHelper() {
     }
+    
+
+
+    private static String printValue(Object value) {
+        if (null == value) {
+            return " is null";
+        }
+        if (value instanceof byte[]) {
+            printHexValue((byte[]) value);
+        }
+        return value.toString();
+    }
+
+    private static String printHexValue(byte[] value) {
+        if (null == value) {
+            return "";
+        }
+        if (value.length <= 64) {
+            return DatatypeConverter.printHexBinary(value);
+        } else {
+            return DatatypeConverter.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
+                    + DatatypeConverter.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
+                    + "(" + value.length + ")";
+        }
+    }
 
     public static Object formatToCassandraType(Object value, AbstractType<?> cType) throws TiesServiceScopeException {
 
@@ -72,7 +100,7 @@ public final class TiesTypeHelper {
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         }
 
-        LOG.debug("Entry.FieldValue {} ({})", value, value.getClass());
+        LOG.debug("Entry.FieldValue of {}: {}", printValue(value), value.getClass());
 
         Class<?> type = requireNonNull(requireNonNull(cType).getSerializer()).getType();
         if (type.isAssignableFrom(value.getClass())) {
