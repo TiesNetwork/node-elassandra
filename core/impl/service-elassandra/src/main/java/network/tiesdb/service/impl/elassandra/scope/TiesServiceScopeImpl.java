@@ -29,6 +29,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -971,6 +972,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         };
 
         List<FieldDescription> tiesFields;
+        ArrayList<String> tableColumnNames;
         {
             Collection<ColumnDefinition> columns = cfMetaData.allColumns();
 
@@ -990,7 +992,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             if (!columnNames.containsAll(fieldNameIds)) {
                 LOG.warn("Fields count missmatch. TiesDB schema need to be updated.");
             }
-
+            tableColumnNames = columnNames;
             tiesFields = fields;
         }
 
@@ -1011,10 +1013,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             Map<String, String> selectedFields = new HashMap<>();
 
             for (Selector sel : selectors) {
-                sel.accept(new Selector.Visitor<Void>() {
+                if (sel.accept(new Selector.Visitor<Boolean>() {
 
                     @Override
-                    public Void on(Selector.FunctionSelector s) throws TiesServiceScopeException {
+                    public Boolean on(Selector.FunctionSelector s) throws TiesServiceScopeException {
                         String aliasName = s.getAlias();
                         aliasName = null != aliasName ? aliasName : s.getName();
                         String aliasNameId = "COM" + tiesComputesCounter.incrementAndGet();
@@ -1025,27 +1027,34 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                         qb.append(" as \"");
                         qb.append(aliasNameId);
                         qb.append('"');
-                        return null;
+                        return true;
                     }
 
                     @Override
-                    public Void on(Selector.FieldSelector s) {
+                    public Boolean on(Selector.FieldSelector s) {
                         String fieldName = s.getFieldName();
                         String fieldNameId = getNameId("VAL", fieldName);
+                        if (!tableColumnNames.contains(fieldNameId)) {
+                            return false;
+                        }
                         qb.append('"');
                         qb.append(fieldNameId);
                         qb.append('"');
                         selectedFields.put(fieldName, fieldNameId);
-                        return null;
+                        return true;
                     }
 
-                });
-                qb.append(',');
+                })) {
+                    qb.append(',');
+                }
             }
             for (FieldDescription field : tiesFields) {
                 String fieldNameId = selectedFields.remove(field.getName());
                 if (null == fieldNameId) {
                     fieldNameId = getNameId("HSH", field.getName());
+                }
+                if (!tableColumnNames.contains(fieldNameId)) {
+                    continue;
                 }
                 qb.append('"');
                 qb.append(fieldNameId);
@@ -1094,29 +1103,43 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         LOG.debug("{}", qb);
 
-        UntypedResultSet result = QueryProcessor.execute(qb.toString(), ConsistencyLevel.ALL, qv.toArray());
-        LOG.debug("Select result {}", result);
-        if (LOG.isDebugEnabled()) {
-            for (UntypedResultSet.Row row : result) {
-                for (ColumnSpecification col : row.getColumns()) {
-                    ByteBuffer bytes = row.getBlob(col.name.toString());
-                    LOG.debug("Select result {}({}) = {}", col.name.toString(), col.type.getClass().getSimpleName().toString(),
-                            (null == bytes ? null : prettyPrint(col.type.compose(bytes))));
+        try {
+            UntypedResultSet result = QueryProcessor.execute(qb.toString(), ConsistencyLevel.ALL, qv.toArray());
+            LOG.debug("Select result {}", result);
+            if (LOG.isDebugEnabled()) {
+                for (UntypedResultSet.Row row : result) {
+                    for (ColumnSpecification col : row.getColumns()) {
+                        ByteBuffer bytes = row.getBlob(col.name.toString());
+                        LOG.debug("Select result {}({}) = {}", col.name.toString(), col.type.getClass().getSimpleName().toString(),
+                                (null == bytes ? null : prettyPrint(col.type.compose(bytes))));
+                    }
                 }
             }
-        }
-        List<Result.Entry> entryList = new LinkedList<>();
-        for (UntypedResultSet.Row row : result) {
-            entryList.add(newResult(row, newEntryHeader(row, cfMetaData), tiesFields, tiesComputes, fieldMap, aliasMap));
-        }
-        recollectionRequest.setResult(new Result() {
-
-            @Override
-            public List<Entry> getEntries() {
-                return entryList;
+            List<Result.Entry> entryList = new LinkedList<>();
+            for (UntypedResultSet.Row row : result) {
+                entryList.add(newResult(row, newEntryHeader(row, cfMetaData), tiesFields, tiesComputes, fieldMap, aliasMap));
             }
+            recollectionRequest.setResult(new Result() {
 
-        });
+                @Override
+                public List<Entry> getEntries() {
+                    return entryList;
+                }
+
+            });
+        } catch (Throwable th) {
+            LOG.debug("Failed to execute recollection request: {}", recollectionRequest.getMessageId(), th);
+            if (th.getCause().getMessage().startsWith("Undefined column name")) {
+                recollectionRequest.setResult(new Result() {
+                    @Override
+                    public List<Entry> getEntries() {
+                        return Collections.emptyList();
+                    }
+                });
+            } else {
+                throw th;
+            }
+        }
     }
 
     private static final class TiesServiceScopeExceptionWrapper extends RuntimeException {

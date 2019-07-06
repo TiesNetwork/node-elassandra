@@ -21,6 +21,7 @@ package network.tiesdb.service.impl.elassandra.scope.db;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -820,7 +821,7 @@ public final class TiesSchemaUtil {
         }
     }
 
-    public static void refreshTiesDBStorage(String tablespaceName, String tableName, FieldDescription fieldDescription) {
+    public static void refreshTiesDBStorage(String tablespaceName, String tableName, Collection<FieldDescription> fieldDescriptions) {
         String tablespaceNameId = getNameId("TIE", tablespaceName);
         String tableNameId = getNameId("TBL", tableName);
 
@@ -829,19 +830,20 @@ public final class TiesSchemaUtil {
             throw new IllegalStateException("Table `" + tablespaceNameId + "`.`" + tableNameId + "`(" + tablespaceName + "." + tableName
                     + ") was not found in cassandra");
         }
-        String fieldNameId = getNameId("FLD", fieldDescription.getName());
-        ColumnDefinition columnDefinition = tableMeta.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true));
-        if (null == columnDefinition) {
-            QueryProcessor.execute(//
-                    "ALTER TABLE \"" + tablespaceNameId + "\".\"" + tableNameId + "\" ADD (" //
-                            + "\"" + getNameId("FLD", fieldDescription.name) + "\" "//
-                            + TiesTypeHelper.mapToCassandraType(fieldDescription.type) + "," //
-                            + "\"" + getNameId("HSH", fieldDescription.name) + "\" blob," //
-                            + "\"" + getNameId("VAL", fieldDescription.name) + "\" blob" //
-                            + ")" //
-                    , //
-                    ConsistencyLevel.ALL);
-        }
+        fieldDescriptions.forEach(fieldDescription -> {
+            String fieldNameId = getNameId("FLD", fieldDescription.getName());
+            ColumnDefinition columnDefinition = tableMeta.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true));
+            if (null == columnDefinition) {
+                QueryProcessor.execute(//
+                        "ALTER TABLE \"" + tablespaceNameId + "\".\"" + tableNameId + "\" ADD (" //
+                                + "\"" + getNameId("FLD", fieldDescription.name) + "\" "//
+                                + TiesTypeHelper.mapToCassandraType(fieldDescription.type) + "," //
+                                + "\"" + getNameId("HSH", fieldDescription.name) + "\" blob," //
+                                + "\"" + getNameId("VAL", fieldDescription.name) + "\" blob" //
+                                + ")", //
+                        ConsistencyLevel.ALL);
+            }
+        });
     }
 
 }

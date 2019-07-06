@@ -80,9 +80,7 @@ public class TiesServiceSchemaImpl implements TiesDaemon {
             LinkedList<FieldDescription> fieldDescriptions = new LinkedList<>();
             loadFieldDescriptions(tablespaceName, tableName, fieldDescriptions::add);
 
-            for (FieldDescription fieldDescription : fieldDescriptions) {
-                refreshTiesDBStorage(tablespaceName, tableName, fieldDescription);
-            }
+            refreshTiesDBStorage(tablespaceName, tableName, fieldDescriptions);
 
             LOG.debug("Schema `{}`.`{}` refreshed successfully", tablespaceName, tableName);
         } catch (Throwable e) {
@@ -291,7 +289,7 @@ public class TiesServiceSchemaImpl implements TiesDaemon {
                         contractDescriptions.add(new FieldDescription(f.getName(), f.getType().toLowerCase()));
                     }
                 }
-
+                LOG.debug("Finished loading data for schema: {}", sd);
                 if (cachedDescriptions.equals(contractDescriptions)) {
                     updateSchemaDescriptionSucces(sd, now, DEFAULT_UPDATE_DELAY, DEFAULT_UPDATE_DELAY_UNIT);
                     LOG.debug("Update succeeded with no changes for schema: {}", sd);
@@ -308,7 +306,11 @@ public class TiesServiceSchemaImpl implements TiesDaemon {
                             for (FieldDescription fieldDescription : contractDescriptions) {
                                 storeFieldDescription(sd.getTablespace(), sd.getTable(), newSchemaVersion, fieldDescription);
                             }
+                            if (contractDescriptions.removeAll(cachedDescriptions) && !contractDescriptions.isEmpty()) {
+                                refreshTiesDBStorage(sd.getTablespace(), sd.getTable(), contractDescriptions);
+                            }
                             updateSchemaDescriptionSucces(sd, newSchemaVersion, now, DEFAULT_UPDATE_DELAY, DEFAULT_UPDATE_DELAY_UNIT);
+                            removeFieldDescriptionsByVersion(sd.getTablespace(), sd.getTable(), oldSchemaVersion);
                         } catch (Throwable e) {
                             try {
                                 removeFieldDescriptionsByVersion(sd.getTablespace(), sd.getTable(), newSchemaVersion);
@@ -318,7 +320,6 @@ public class TiesServiceSchemaImpl implements TiesDaemon {
                             }
                             throw e;
                         }
-                        removeFieldDescriptionsByVersion(sd.getTablespace(), sd.getTable(), oldSchemaVersion);
                     }
                 }
             } catch (Throwable e) {
