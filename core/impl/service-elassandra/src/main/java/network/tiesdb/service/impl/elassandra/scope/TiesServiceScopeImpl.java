@@ -75,6 +75,7 @@ import network.tiesdb.service.impl.elassandra.scope.db.TiesTypeHelper;
 import network.tiesdb.service.scope.api.TiesEntryHeader;
 import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
+import network.tiesdb.service.scope.api.TiesServiceScopeHealing;
 import network.tiesdb.service.scope.api.TiesServiceScopeModification;
 import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry;
 import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry.FieldValue;
@@ -1435,6 +1436,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     @Override
     public void result(TiesServiceScopeResult result) throws TiesServiceScopeException {
         throw new TiesServiceScopeException("Node should not handle any result");
+    }
+
+    @Override
+    public void heal(TiesServiceScopeHealing action) throws TiesServiceScopeException {
+        // TODO Auto-generated method stub
+        throw new TiesServiceScopeException("Healing not implemented yet");
     }
 
 }
