@@ -81,9 +81,9 @@ import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
 import network.tiesdb.service.scope.api.TiesServiceScopeHealing;
 import network.tiesdb.service.scope.api.TiesServiceScopeModification;
-import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry;
-import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry.FieldValue;
-import network.tiesdb.service.scope.api.TiesServiceScopeModification.Entry.FieldHash;
+import network.tiesdb.service.scope.api.TiesEntryExtended;
+import network.tiesdb.service.scope.api.TiesEntryExtended.TypedHashField;
+import network.tiesdb.service.scope.api.TiesEntryExtended.TypedValueField;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Filter;
@@ -459,7 +459,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     @Override
     public void insert(TiesServiceScopeModification modificationRequest) throws TiesServiceScopeException {
 
-        TiesServiceScopeModification.Entry entry = modificationRequest.getEntry();
+        TiesEntryExtended entry = modificationRequest.getEntry();
         String tablespaceName = entry.getTablespaceName();
         String tableName = entry.getTableName();
         LOG.debug("Insert into `{}`.`{}`", tablespaceName, tableName);
@@ -479,7 +479,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Table `" + tablespaceName + "`.`" + tableName + "` was not found");
         }
 
-        Map<String, Entry.FieldValue> entryFields = entry.getFieldValues();
+        Map<String, TypedValueField> entryFields = entry.getFieldValues();
 
         if (entryFields.isEmpty()) {
             return;
@@ -518,10 +518,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
             }
 
-            Entry.FieldValue fieldValue = entryFields.get(fieldName);
+            TypedValueField fieldValue = entryFields.get(fieldName);
             requireNonNull(fieldValue);
             LOG.debug("Field {} ({}) Value ({}) {}", fieldName, fieldNameId, fieldValue.getType(),
-                    format(fieldValue.getType(), fieldValue.getBytes()));
+                    format(fieldValue.getType(), fieldValue.getValue()));
 
             Object fieldFormattedValue = TiesTypeHelper.formatToCassandraType(fieldValue.get(),
                     columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
@@ -538,7 +538,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 fieldNames.add(fieldHashNameId);
                 fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
                 fieldNames.add(fieldValueNameId);
-                fieldValues.add(ByteBuffer.wrap(fieldValue.getBytes()));
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getValue()));
             } else {
                 LOG.debug("DataField {}", fieldName);
                 fieldNames.add(fieldNameId);
@@ -547,7 +547,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 fieldNames.add(fieldHashNameId);
                 fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
                 fieldNames.add(fieldValueNameId);
-                fieldValues.add(ByteBuffer.wrap(fieldValue.getBytes()));
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getValue()));
             }
         }
 
@@ -648,7 +648,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     @Override
     public void update(TiesServiceScopeModification modificationRequest) throws TiesServiceScopeException {
 
-        TiesServiceScopeModification.Entry entry = modificationRequest.getEntry();
+        TiesEntryExtended entry = modificationRequest.getEntry();
 
         String tablespaceName = entry.getTablespaceName();
         String tableName = entry.getTableName();
@@ -664,8 +664,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Update failed");
         }
 
-        Map<String, Entry.FieldValue> entryFieldValues = entry.getFieldValues();
-        Map<String, Entry.FieldHash> entryFieldHashes = entry.getFieldHashes();
+        Map<String, TypedValueField> entryFieldValues = entry.getFieldValues();
+        Map<String, TypedHashField> entryFieldHashes = entry.getFieldHashes();
         ArrayList<String> partKeyColumnsNames;
         {
             List<ColumnDefinition> partKeyColumns = cfMetaData.partitionKeyColumns();
@@ -705,7 +705,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         addHeader(entry.getHeader(), fieldNames, fieldValues, cfMetaData);
 
-        for (Map.Entry<String, FieldValue> entryField : entryFieldValues.entrySet()) {
+        for (Map.Entry<String, TypedValueField> entryField : entryFieldValues.entrySet()) {
 
             String fieldName = entryField.getKey();
             String fieldNameId = getNameId("FLD", fieldName);
@@ -719,10 +719,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
             emptyNames.remove(fieldNameId);
 
-            Entry.FieldValue fieldValue = entryField.getValue();
+            TypedValueField fieldValue = entryField.getValue();
             requireNonNull(fieldValue);
             LOG.debug("Field {} ({}) RawValue ({}) {}", fieldName, fieldNameId, fieldValue.getType(),
-                    format(fieldValue.getType(), fieldValue.getBytes()));
+                    format(fieldValue.getType(), fieldValue.getValue()));
 
             Object fieldFormattedValue = TiesTypeHelper.formatToCassandraType(fieldValue.get(),
                     columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
@@ -743,11 +743,11 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 fieldNames.add(fieldHashNameId);
                 fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
                 fieldNames.add(fieldValueNameId);
-                fieldValues.add(ByteBuffer.wrap(fieldValue.getBytes()));
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getValue()));
             }
         }
 
-        for (Map.Entry<String, FieldHash> entryField : entryFieldHashes.entrySet()) {
+        for (Map.Entry<String, TypedHashField> entryField : entryFieldHashes.entrySet()) {
 
             String fieldName = entryField.getKey();
             String fieldNameId = getNameId("FLD", fieldName);
@@ -761,7 +761,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
             emptyNames.remove(fieldNameId);
 
-            Entry.FieldHash fieldHash = entryField.getValue();
+            TypedHashField fieldHash = entryField.getValue();
             requireNonNull(fieldHash);
             LOG.debug("HashField {} ({}) RawHash {}", fieldName, fieldNameId, format("BYTES", fieldHash.getHash()));
 
@@ -830,7 +830,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     @Override
     public void delete(TiesServiceScopeModification modificationRequest) throws TiesServiceScopeException {
 
-        TiesServiceScopeModification.Entry entry = modificationRequest.getEntry();
+        TiesEntryExtended entry = modificationRequest.getEntry();
 
         String tablespaceName = entry.getTablespaceName();
         String tableName = entry.getTableName();
@@ -846,8 +846,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Delete failed");
         }
 
-        Map<String, Entry.FieldValue> entryFieldValues = entry.getFieldValues();
-        Map<String, Entry.FieldHash> entryFieldHashes = entry.getFieldHashes();
+        Map<String, TypedValueField> entryFieldValues = entry.getFieldValues();
+        Map<String, TypedHashField> entryFieldHashes = entry.getFieldHashes();
         ArrayList<String> partKeyColumnsNames;
         {
             List<ColumnDefinition> partKeyColumns = cfMetaData.partitionKeyColumns();
@@ -889,7 +889,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Deletion Entry should have only key values");
         }
 
-        for (Map.Entry<String, FieldValue> entryField : entryFieldValues.entrySet()) {
+        for (Map.Entry<String, TypedValueField> entryField : entryFieldValues.entrySet()) {
 
             String fieldName = entryField.getKey();
             String fieldNameId = getNameId("FLD", fieldName);
@@ -901,10 +901,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
             emptyNames.remove(fieldNameId);
 
-            Entry.FieldValue fieldValue = entryField.getValue();
+            TypedValueField fieldValue = entryField.getValue();
             requireNonNull(fieldValue);
             LOG.debug("Field {} ({}) RawValue ({}) {}", fieldName, fieldNameId, fieldValue.getType(),
-                    format(fieldValue.getType(), fieldValue.getBytes()));
+                    format(fieldValue.getType(), fieldValue.getValue()));
 
             if (partKeyColumnsNames.remove(fieldNameId)) {
                 LOG.debug("KeyField {}", fieldName);
