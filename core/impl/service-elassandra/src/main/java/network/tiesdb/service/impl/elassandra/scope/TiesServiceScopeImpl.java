@@ -24,6 +24,7 @@ import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.ENT
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.getNameId;
 
 import java.io.IOException;
+import java.lang.ref.SoftReference;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -38,7 +39,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.xml.bind.DatatypeConverter;
 
@@ -254,6 +258,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
     }
 
+    private static final Map<String, Map<String, Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>>>> resultCache = new ConcurrentHashMap<>();
+
     private final TiesServiceImpl service;
 
     public TiesServiceScopeImpl(TiesServiceImpl service) {
@@ -264,6 +270,64 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     @Override
     public void close() throws IOException {
         LOG.debug(this + " is closed");
+    }
+
+    private void addCache(String tablespaceName, String tableName, String queryString,
+            List<TiesServiceScopeRecollection.Result.Entry> entryList) {
+        resultCache//
+                .computeIfAbsent(tablespaceName, (key) -> new ConcurrentHashMap<>()) // get tablespace cache
+                .computeIfAbsent(tableName, (key) -> new ConcurrentHashMap<>()) // get table cache
+                .put(queryString, new SoftReference<>(entryList)); // set query cache
+    }
+
+    private static final class NoRemap extends RuntimeException {
+        private static final long serialVersionUID = 2075268673162828958L;
+
+        public NoRemap() {
+            super();
+        }
+
+    }
+
+    private Optional<List<TiesServiceScopeRecollection.Result.Entry>> getCache(String tablespaceName, String tableName,
+            String queryString) {
+        List<TiesServiceScopeRecollection.Result.Entry> result = null;
+        {
+            Map<String, Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>>> tsCache = resultCache
+                    .get(tablespaceName);
+            if (null != tsCache) {
+                Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>> tbCache = tsCache.get(tableName);
+                if (null != tbCache) {
+                    AtomicReference<List<TiesServiceScopeRecollection.Result.Entry>> refValue = new AtomicReference<>();
+                    try {
+                        tbCache.computeIfPresent(queryString, (key, value) -> {
+                            if (refValue.compareAndSet(null, value.get())) {
+                                if (null != refValue.get()) {
+                                    throw new NoRemap();
+                                }
+                                return null;
+                            } else {
+                                throw new IllegalStateException("Value reference is already set");
+                            }
+                        });
+                    } catch (NoRemap e) {
+                        LOG.debug("Found result cache for `{}`.`{}`: {}", tablespaceName, tableName, queryString);
+                    }
+                    result = refValue.get();
+                }
+            }
+        }
+        return Optional.ofNullable(result);
+    }
+
+    private void clearCache(String tablespaceName, String tableName) {
+        Map<String, Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>>> tsCache = resultCache.get(tablespaceName);
+        if (null != tsCache) {
+            Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>> tbCache = tsCache.get(tableName);
+            if (null != tbCache) {
+                tbCache.clear();
+            }
+        }
     }
 
     @Override
@@ -549,6 +613,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         if (result.isEmpty()) {
             throw new TiesServiceScopeException("No insertion result found");
         } else if (result.size() > 1) {
+            clearCache(tablespaceName, tableName);
             throw new TiesServiceScopeException("Multiple insertion results found");
         } else if (!result.one().getBoolean("[applied]")) {
             {
@@ -571,6 +636,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             }
             throw new TiesServiceScopeException("Insertion failed");
         }
+        clearCache(tablespaceName, tableName);
         modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
@@ -747,10 +813,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         if (result.isEmpty()) {
             throw new TiesServiceScopeException("No update result found");
         } else if (result.size() > 1) {
+            clearCache(tablespaceName, tableName);
             throw new TiesServiceScopeException("Multiple updates results found");
         } else if (!result.one().getBoolean("[applied]")) {
             throw new TiesServiceScopeException("Update failed for " + entry);
         }
+        clearCache(tablespaceName, tableName);
         modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
@@ -912,10 +980,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         if (result.isEmpty()) {
             throw new TiesServiceScopeException("No delete result found");
         } else if (result.size() > 1) {
+            clearCache(tablespaceName, tableName);
             throw new TiesServiceScopeException("Multiple delete results found");
         } else if (!result.one().getBoolean("[applied]")) {
             throw new TiesServiceScopeException("Delete failed");
         }
+        clearCache(tablespaceName, tableName);
         modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
@@ -1102,24 +1172,33 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         qb.append(" ALLOW FILTERING");
 
-        LOG.debug("{}", qb);
+        String queryString = qb.toString();
+        LOG.debug("{}", queryString);
 
         try {
-            UntypedResultSet result = QueryProcessor.execute(qb.toString(), ConsistencyLevel.ALL, qv.toArray());
-            LOG.debug("Select result {}", result);
-            if (LOG.isDebugEnabled()) {
-                for (UntypedResultSet.Row row : result) {
-                    for (ColumnSpecification col : row.getColumns()) {
-                        ByteBuffer bytes = row.getBlob(col.name.toString());
-                        LOG.debug("Select result {}({}) = {}", col.name.toString(), col.type.getClass().getSimpleName().toString(),
-                                (null == bytes ? null : prettyPrint(col.type.compose(bytes))));
+            List<Result.Entry> entryList = getCache(tablespaceName, tableName, queryString).orElseGet(() -> {
+                UntypedResultSet result = QueryProcessor.execute(queryString, ConsistencyLevel.ALL, qv.toArray());
+                LOG.debug("Select result {}", result);
+                if (LOG.isDebugEnabled()) {
+                    for (UntypedResultSet.Row row : result) {
+                        for (ColumnSpecification col : row.getColumns()) {
+                            ByteBuffer bytes = row.getBlob(col.name.toString());
+                            LOG.debug("Select result {}({}) = {}", col.name.toString(), col.type.getClass().getSimpleName().toString(),
+                                    (null == bytes ? null : prettyPrint(col.type.compose(bytes))));
+                        }
                     }
                 }
-            }
-            List<Result.Entry> entryList = new LinkedList<>();
-            for (UntypedResultSet.Row row : result) {
-                entryList.add(newResult(row, newEntryHeader(row, cfMetaData), tiesFields, tiesComputes, fieldMap, aliasMap));
-            }
+                List<Result.Entry> updatedEntryList = new LinkedList<>();
+                for (UntypedResultSet.Row row : result) {
+                    try {
+                        updatedEntryList.add(newResult(row, newEntryHeader(row, cfMetaData), tiesFields, tiesComputes, fieldMap, aliasMap));
+                    } catch (TiesServiceScopeException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                addCache(tablespaceName, tableName, queryString, updatedEntryList);
+                return updatedEntryList;
+            });
             recollectionRequest.setResult(new Result() {
 
                 @Override
@@ -1130,7 +1209,11 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             });
         } catch (Throwable th) {
             LOG.debug("Failed to execute recollection request: {}", recollectionRequest.getMessageId(), th);
-            if (th.getCause().getMessage().startsWith("Undefined column name")) {
+            if (Optional.ofNullable(th) //
+                    .map((e) -> e.getCause()) //
+                    .map((e) -> e.getMessage()) //
+                    .map((msg) -> msg.startsWith("Undefined column name")) //
+                    .orElse(false)) {
                 recollectionRequest.setResult(new Result() {
                     @Override
                     public List<Entry> getEntries() {
