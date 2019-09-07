@@ -1522,9 +1522,190 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
-    public void heal(TiesServiceScopeHealing action) throws TiesServiceScopeException {
-        // TODO Auto-generated method stub
-        throw new TiesServiceScopeException("Healing not implemented yet");
+    public void heal(TiesServiceScopeHealing healingRequest) throws TiesServiceScopeException {
+        TiesEntryExtended entry = healingRequest.getEntry();
+        String tablespaceName = entry.getTablespaceName();
+        String tableName = entry.getTableName();
+        LOG.debug("Healing into `{}`.`{}`", tablespaceName, tableName);
+
+        String tablespaceNameId = getNameId("TIE", tablespaceName);
+        String tableNameId = getNameId("TBL", tableName);
+        LOG.debug("Mapping table `{}`.`{}` to {}.{}", tablespaceName, tableName, tablespaceNameId, tableNameId);
+
+        CheckedSupplier<CFMetaData, RuntimeException> getSchema = () -> {
+            return Schema.instance.getCFMetaData(tablespaceNameId, tableNameId);
+        };
+        CFMetaData cfMetaData = retry(//
+                getSchema, //
+                getSchema.butFirst(() -> createSchema(tablespaceName, tableName)));
+
+        if (null == cfMetaData) {
+            throw new TiesServiceScopeException("Table `" + tablespaceName + "`.`" + tableName + "` was not found");
+        }
+        Map<String, TypedValueField> entryFields = entry.getFieldValues();
+
+        if (entryFields.isEmpty()) {
+            return;
+        }
+
+        ArrayList<String> partKeyColumnsNames;
+        {
+            List<ColumnDefinition> partKeyColumns = cfMetaData.partitionKeyColumns();
+            partKeyColumnsNames = new ArrayList<>(partKeyColumns.size());
+            for (ColumnDefinition columnDefinition : partKeyColumns) {
+                partKeyColumnsNames.add(columnDefinition.name.toString().toUpperCase());
+            }
+        }
+
+        List<String> keyNames = new ArrayList<>(partKeyColumnsNames.size());
+        List<Object> keyValues = new ArrayList<>(keyNames.size());
+        List<String> fieldNames = new ArrayList<>(entryFields.size());
+        List<Object> fieldValues = new ArrayList<>(entryFields.size());
+
+        addHeader(entry.getHeader(), fieldNames, fieldValues, cfMetaData);
+
+        for (String fieldName : entryFields.keySet()) {
+
+            String fieldNameId = getNameId("FLD", fieldName);
+            String fieldHashNameId = getNameId("HSH", fieldName);
+            String fieldValueNameId = getNameId("VAL", fieldName);
+
+            CheckedSupplier<ColumnDefinition, RuntimeException> getColumn = () -> {
+                return cfMetaData.getColumnDefinition(ColumnIdentifier.getInterned(fieldNameId, true));
+            };
+            ColumnDefinition columnDefinition = retry( //
+                    getColumn, //
+                    getColumn.butFirst(() -> refreshSchema(tablespaceName, tableName)));
+
+            if (null == columnDefinition) {
+                throw new TiesServiceScopeException("Field `" + tablespaceName + "`.`" + tableName + "`.`" + fieldName + "` was not found");
+            }
+
+            TypedValueField fieldValue = entryFields.get(fieldName);
+            requireNonNull(fieldValue);
+            LOG.debug("Field {} ({}) Value ({}) {}", fieldName, fieldNameId, fieldValue.getType(),
+                    format(fieldValue.getType(), fieldValue.getValue()));
+
+            Object fieldFormattedValue = TiesTypeHelper.formatToCassandraType(fieldValue.get(),
+                    columnDefinition.getExactTypeIfKnown(cfMetaData.ksName));
+            if (null != fieldFormattedValue) {
+                LOG.debug("FormattedValue {} ({})", fieldFormattedValue, fieldFormattedValue.getClass());
+            } else {
+                LOG.debug("FormattedValue null");
+            }
+
+            if (partKeyColumnsNames.remove(fieldNameId)) {
+                LOG.debug("KeyField {}", fieldName);
+                keyNames.add(fieldNameId);
+                keyValues.add(fieldFormattedValue);
+                fieldNames.add(fieldHashNameId);
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
+                fieldNames.add(fieldValueNameId);
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getValue()));
+            } else {
+                LOG.debug("DataField {}", fieldName);
+                fieldNames.add(fieldNameId);
+                fieldValues.add(fieldFormattedValue);
+                // fieldValues.add(columnType.compose(ByteBuffer.wrap(fieldValue.getBytes())));
+                fieldNames.add(fieldHashNameId);
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getHash()));
+                fieldNames.add(fieldValueNameId);
+                fieldValues.add(ByteBuffer.wrap(fieldValue.getValue()));
+            }
+        }
+
+        UntypedResultSet result = retry(//
+                r -> !(null == r || r.isEmpty() || r.size() > 1) && r.one().getBoolean("[applied]"), //
+                () -> {
+                    List<String> allNames = new LinkedList<>();
+                    allNames.addAll(keyNames);
+                    allNames.addAll(fieldNames);
+
+                    List<Object> allValues = new LinkedList<>();
+                    allValues.addAll(keyValues);
+                    allValues.addAll(fieldValues);
+
+                    String query = String.format("INSERT INTO \"%s\".\"%s\"\n" //
+                            + "(%s)\n" //
+                            + "VALUES (%s)\n" //
+                            + "IF NOT EXISTS", //
+                            tablespaceNameId, tableNameId, //
+                            concat(allNames, ", "), //
+                            createValuePlaceholders(allNames.size()));
+                    LOG.debug("Healing insert query {}", query);
+
+                    UntypedResultSet insertResult = QueryProcessor.execute(query, ConsistencyLevel.ALL, allValues.toArray());
+                    if (LOG.isTraceEnabled()) {
+                        for (UntypedResultSet.Row row : insertResult) {
+                            LOG.trace("Healing insert result row {}", row);
+                            for (ColumnSpecification col : row.getColumns()) {
+                                LOG.trace("Healing insert result row col {} = {}", col.name, col.type.compose(row.getBlob(col.name.toString())));
+                            }
+                        }
+                    }
+                    return insertResult;
+                }, () -> {
+                    LOG.trace("Healing insert failed trying to upsert...");
+                    List<Object> allValues = new LinkedList<>();
+                    allValues.addAll(fieldValues);
+                    allValues.addAll(keyValues);
+
+                    String query = String.format("UPDATE \"%s\".\"%s\"" //
+                            + " SET %s = ?" //
+                            + " WHERE %s = ?" //
+                            + " IF \"" + ENTRY_VERSION + "\" = 0", //
+                            tablespaceNameId, tableNameId, //
+                            concat(fieldNames, " = ?, "), //
+                            concat(keyNames, " = ? AND ") //
+                    );
+                    LOG.debug("Healing upsert query {}", query);
+
+                    UntypedResultSet insertResult = QueryProcessor.execute(query, ConsistencyLevel.ALL, allValues.toArray());
+                    if (LOG.isDebugEnabled()) {
+                        for (UntypedResultSet.Row row : insertResult) {
+                            LOG.debug("Healing upsert result row {}", row);
+                            for (ColumnSpecification col : row.getColumns()) {
+                                ByteBuffer bytes = row.getBlob(col.name.toString());
+                                LOG.debug("Healing upsert result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
+                            }
+                        }
+                    }
+                    return insertResult;
+                });
+
+        if (result.isEmpty()) {
+            throw new TiesServiceScopeException("No healing result found");
+        } else if (result.size() > 1) {
+            clearCache(tablespaceName, tableName);
+            throw new TiesServiceScopeException("Multiple healing results found");
+        } else if (!result.one().getBoolean("[applied]")) {
+            {
+                partKeyColumnsNames.removeAll(fieldNames);
+                if (!partKeyColumnsNames.isEmpty()) {
+                    LOG.debug("Missing values for {}", partKeyColumnsNames);
+                    Map<String, String> emptyNames = new HashMap<>();
+
+                    TiesSchemaUtil.loadFieldDescriptions(tablespaceName, tableName, fd -> {
+                        emptyNames.put(getNameId("FLD", fd.getName()), fd.getName());
+                    });
+
+                    List<String> missingKeys = new LinkedList<>();
+                    for (String fieldNameId : partKeyColumnsNames) {
+                        missingKeys.add(emptyNames.get(fieldNameId));
+                    }
+                    throw new TiesServiceScopeException(
+                            "Missing key fields for `" + tablespaceName + "`.`" + tableName + "`: " + missingKeys);
+                }
+            }
+            throw new TiesServiceScopeException("Healing failed");
+        }
+        clearCache(tablespaceName, tableName);
+        healingRequest.setResult(new TiesServiceScopeHealing.Result.Success() {
+            @Override
+            public byte[] getHeaderHash() {
+                return entry.getHeader().getHash();
+            }
+        });
     }
 
 }
