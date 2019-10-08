@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.ENTRY_HEADER;
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.ENTRY_VERSION;
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.getNameId;
+import static network.tiesdb.util.Hex.DEFAULT_HEX;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
@@ -43,8 +44,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import javax.xml.bind.DatatypeConverter;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -192,10 +191,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             return "";
         }
         if (value.length <= 64) {
-            return DatatypeConverter.printHexBinary(value);
+            return DEFAULT_HEX.printHexBinary(value);
         } else {
-            return DatatypeConverter.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
-                    + DatatypeConverter.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
+            return DEFAULT_HEX.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
+                    + DEFAULT_HEX.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
                     + "(" + value.length + ")";
         }
     }

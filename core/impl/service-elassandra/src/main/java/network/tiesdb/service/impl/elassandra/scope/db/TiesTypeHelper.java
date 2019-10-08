@@ -21,6 +21,7 @@ package network.tiesdb.service.impl.elassandra.scope.db;
 import static java.util.Objects.requireNonNull;
 import static network.tiesdb.type.Duration.DurationTimeUnit.DAY;
 import static network.tiesdb.type.Duration.DurationTimeUnit.NANOSECOND;
+import static network.tiesdb.util.Hex.DEFAULT_HEX;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -28,8 +29,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-
-import javax.xml.bind.DatatypeConverter;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -85,10 +84,10 @@ public final class TiesTypeHelper {
             return "";
         }
         if (value.length <= 64) {
-            return DatatypeConverter.printHexBinary(value);
+            return DEFAULT_HEX.printHexBinary(value);
         } else {
-            return DatatypeConverter.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
-                    + DatatypeConverter.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
+            return DEFAULT_HEX.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
+                    + DEFAULT_HEX.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
                     + "(" + value.length + ")";
         }
     }
