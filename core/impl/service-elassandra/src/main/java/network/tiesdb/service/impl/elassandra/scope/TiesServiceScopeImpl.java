@@ -398,7 +398,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
     private static Object getHeaderField(TiesEntryHeader h, String name) throws TiesServiceScopeException {
         try {
-            HeaderField headerField = HeaderField.valueOfIgnoreCase(name.toUpperCase());
+            HeaderField headerField = HeaderField.valueOfIgnoreCase(name);
             switch (headerField) {
             case TIM:
                 return h.getEntryTimestamp();

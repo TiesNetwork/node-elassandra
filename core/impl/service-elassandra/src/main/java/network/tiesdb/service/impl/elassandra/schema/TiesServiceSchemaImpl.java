@@ -291,7 +291,7 @@ public class TiesServiceSchemaImpl implements TiesDaemon {
                 }
                 LOG.debug("Finished loading data for schema: {}", sd);
                 if (cachedDescriptions.equals(contractDescriptions)) {
-                    updateSchemaDescriptionSucces(sd, now, DEFAULT_UPDATE_DELAY, DEFAULT_UPDATE_DELAY_UNIT);
+                    updateSchemaDescriptionSucces(sd, null, now, DEFAULT_UPDATE_DELAY, DEFAULT_UPDATE_DELAY_UNIT);
                     LOG.debug("Update succeeded with no changes for schema: {}", sd);
                 } else {
                     try {

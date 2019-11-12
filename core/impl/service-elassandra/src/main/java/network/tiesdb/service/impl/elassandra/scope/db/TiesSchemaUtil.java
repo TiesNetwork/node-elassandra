@@ -188,8 +188,8 @@ public final class TiesSchemaUtil {
 
     private static final String KEYSPACE = "ties_schema";
     private static final String KEYSPACE_REPLICATION = "{ 'class' : 'org.apache.cassandra.locator.NetworkTopologyStrategy', 'DC1': '1' }";
-    private static final String FIELDS_TABLE = "fields";
     private static final String SCHEMAS_TABLE = "schemas";
+    private static final String FIELDS_TABLE = "fields";
 
     private static final String SCHEMA_TABLESPACE_NAME = "tablespace_name";
     private static final String SCHEMA_TABLE_NAME = "table_name";
@@ -198,6 +198,18 @@ public final class TiesSchemaUtil {
     private static final String SCHEMA_VERSION = "version";
     private static final String SCHEMA_UPDATE_SCHEDULED = "update_scheduled";
     private static final String SCHEMA_UPDATE_FINISHED = "update_finished";
+
+    private static final String PAYMENTS_TABLE = "payments";
+    private static final String CHEQUES_TABLE = "cheques";
+
+    private static final String PAYMENTS_CHEQUE_ISSUER = "issuer";
+    private static final String PAYMENTS_CHEQUE_RANGE = "cheque_range";
+    private static final String PAYMENTS_CHEQUE_NUMBER = "cheque_number";
+    private static final String PAYMENTS_CHEQUE_AMOUNT = "amount";
+    private static final String PAYMENTS_CHEQUE_VERSION = "version";
+    private static final String PAYMENTS_CHEQUE_NETWORK = "network";
+    private static final String PAYMENTS_CHEQUE_TIMESTAMP = "issue_timestamp";
+    private static final String PAYMENTS_CHEQUE_RAW = "raw";
 
     private static final int DEFAULT_FIELDS_SYNC_RETRY = 3;
     private static final int DEFAULT_CREATION_RETRY = 2;
@@ -263,6 +275,17 @@ public final class TiesSchemaUtil {
                 throw new TiesConfigurationException("TiesDB fields table `" + KEYSPACE + "`.`" + FIELDS_TABLE + "` not found");
             }
         }
+        {
+            LOG.debug("Checking TiesDB cheques table");
+            CFMetaData sch = Schema.instance.getCFMetaData(KEYSPACE, CHEQUES_TABLE);
+            if (null == sch) {
+                createChequesTable();
+                sch = Schema.instance.getCFMetaData(KEYSPACE, CHEQUES_TABLE);
+            }
+            if (null == sch) {
+                throw new TiesConfigurationException("TiesDB cheques table `" + KEYSPACE + "`.`" + CHEQUES_TABLE + "` not found");
+            }
+        }
         LOG.debug("TiesDB schema table found");
     }
 
@@ -295,7 +318,7 @@ public final class TiesSchemaUtil {
     }
 
     private static void createSchemasTable() throws TiesConfigurationException {
-        LOG.debug("Creating TiesDB schemas table: `{}`", FIELDS_TABLE);
+        LOG.debug("Creating TiesDB schemas table: `{}`", SCHEMAS_TABLE);
         QueryProcessor.execute(//
                 "CREATE TABLE " + KEYSPACE + "." + SCHEMAS_TABLE + " (\n"//
                         + SCHEMA_TABLESPACE_NAME + " text,\n"//
@@ -306,6 +329,26 @@ public final class TiesSchemaUtil {
                         + " PRIMARY KEY (("//
                         + SCHEMA_TABLESPACE_NAME + ","//
                         + SCHEMA_TABLE_NAME + "))\n"//
+                        + ")", //
+                ConsistencyLevel.ALL);
+    }
+
+    private static void createChequesTable() throws TiesConfigurationException {
+        LOG.debug("Creating TiesDB cheques table: `{}`", CHEQUES_TABLE);
+        QueryProcessor.execute(//
+                "CREATE TABLE " + KEYSPACE + "." + CHEQUES_TABLE + " (\n"//
+                        + PAYMENTS_CHEQUE_ISSUER + " blob,\n"//
+                        + PAYMENTS_CHEQUE_RANGE + " uuid,\n"//
+                        + PAYMENTS_CHEQUE_NUMBER + " bigint,\n"//
+                        + PAYMENTS_CHEQUE_AMOUNT + " bigint,\n"//
+                        + PAYMENTS_CHEQUE_VERSION + " int,\n"//
+                        + PAYMENTS_CHEQUE_NETWORK + " int,\n"//
+                        + PAYMENTS_CHEQUE_TIMESTAMP + " timestamp,\n"//
+                        + PAYMENTS_CHEQUE_RAW + " blob,\n"//
+                        + " PRIMARY KEY (("//
+                        + PAYMENTS_CHEQUE_ISSUER + "), "//
+                        + PAYMENTS_CHEQUE_RANGE + ", "//
+                        + PAYMENTS_CHEQUE_NUMBER + ")\n"//
                         + ")", //
                 ConsistencyLevel.ALL);
     }
@@ -446,11 +489,6 @@ public final class TiesSchemaUtil {
         conditions.put(SCHEMA_VERSION, schema.version);
 
         saveSchemaDescription(schema, update, conditions);
-    }
-
-    public static void updateSchemaDescriptionSucces(SchemaDescription schema, Date date, int delayTime, TimeUnit delayTimeUnit)
-            throws TiesServiceScopeException {
-        updateSchemaDescriptionSucces(schema, null, date, delayTime, delayTimeUnit);
     }
 
     public static void updateSchemaDescriptionSucces(SchemaDescription schema, UUID newVersion, Date date, int delayTime,
