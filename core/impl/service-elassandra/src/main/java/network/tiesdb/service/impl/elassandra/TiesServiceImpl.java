@@ -38,6 +38,8 @@ import network.tiesdb.schema.api.TiesSchema;
 import network.tiesdb.schema.api.TiesSchemaFactory;
 import network.tiesdb.service.api.TiesService;
 import network.tiesdb.service.impl.elassandra.schema.TiesServiceSchemaImpl;
+import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeBilling;
+import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeBillingWrapper;
 import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeImpl;
 import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil;
 import network.tiesdb.service.scope.api.TiesServiceScope;
@@ -55,6 +57,8 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
     private static final TiesServiceImplVersion IMPLEMENTATION_VERSION = TiesServiceImplVersion.v_0_0_1_prealpha;
 
     protected final TiesServiceConfig config;
+
+    private final TiesServiceScopeBilling billing = new TiesServiceScopeBilling();
 
     private final AtomicReference<List<TiesTransportServer>> transportsRef = new AtomicReference<>();
     private final AtomicReference<TiesServiceSchemaImpl> schemaImplRef = new AtomicReference<>();
@@ -209,7 +213,8 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
 
     @Override
     public TiesServiceScope newServiceScope() {
-        return new TiesServiceScopeImpl(this);
+        return new TiesServiceScopeBillingWrapper(new TiesServiceScopeImpl(this), billing);
+        // return new TiesServiceScopeImpl(this);
     }
 
 }

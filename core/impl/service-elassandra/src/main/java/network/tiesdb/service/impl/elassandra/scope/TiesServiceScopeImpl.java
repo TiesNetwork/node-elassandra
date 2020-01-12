@@ -31,7 +31,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1198,13 +1197,11 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 addCache(tablespaceName, tableName, queryString, updatedEntryList);
                 return updatedEntryList;
             });
-            recollectionRequest.setResult(new Result() {
-
+            recollectionRequest.setResult(new TiesServiceScopeRecollection.Success() {
                 @Override
                 public List<Entry> getEntries() {
                     return entryList;
                 }
-
             });
         } catch (Throwable th) {
             LOG.debug("Failed to execute recollection request: {}", recollectionRequest.getMessageId(), th);
@@ -1213,10 +1210,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                     .map((e) -> e.getMessage()) //
                     .map((msg) -> msg.startsWith("Undefined column name")) //
                     .orElse(false)) {
-                recollectionRequest.setResult(new Result() {
+                recollectionRequest.setResult(new TiesServiceScopeRecollection.Error() {
                     @Override
-                    public List<Entry> getEntries() {
-                        return Collections.emptyList();
+                    public List<Throwable> getErrors() {
+                        return Arrays.asList(th);
                     }
                 });
             } else {
@@ -1638,7 +1635,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                         for (UntypedResultSet.Row row : insertResult) {
                             LOG.trace("Healing insert result row {}", row);
                             for (ColumnSpecification col : row.getColumns()) {
-                                LOG.trace("Healing insert result row col {} = {}", col.name, col.type.compose(row.getBlob(col.name.toString())));
+                                LOG.trace("Healing insert result row col {} = {}", col.name,
+                                        col.type.compose(row.getBlob(col.name.toString())));
                             }
                         }
                     }
@@ -1665,7 +1663,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                             LOG.debug("Healing upsert result row {}", row);
                             for (ColumnSpecification col : row.getColumns()) {
                                 ByteBuffer bytes = row.getBlob(col.name.toString());
-                                LOG.debug("Healing upsert result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
+                                LOG.debug("Healing upsert result row col {} = {}", col.name,
+                                        (null == bytes ? null : col.type.compose(bytes)));
                             }
                         }
                     }
