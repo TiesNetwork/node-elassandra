@@ -574,7 +574,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                         for (UntypedResultSet.Row row : insertResult) {
                             LOG.trace("Insert result row {}", row);
                             for (ColumnSpecification col : row.getColumns()) {
-                                LOG.trace("Insert result row col {} = {}", col.name, col.type.compose(row.getBlob(col.name.toString())));
+                                ByteBuffer bytes = row.getBlob(col.name.toString());
+                                LOG.trace("Insert result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
                             }
                         }
                     }
@@ -596,12 +597,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                     LOG.debug("Upsert query {}", query);
 
                     UntypedResultSet insertResult = QueryProcessor.execute(query, ConsistencyLevel.ALL, allValues.toArray());
-                    if (LOG.isDebugEnabled()) {
+                    if (LOG.isTraceEnabled()) {
                         for (UntypedResultSet.Row row : insertResult) {
-                            LOG.debug("Upsert result row {}", row);
+                            LOG.trace("Upsert result row {}", row);
                             for (ColumnSpecification col : row.getColumns()) {
                                 ByteBuffer bytes = row.getBlob(col.name.toString());
-                                LOG.debug("Upsert result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
+                                LOG.trace("Upsert result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
                             }
                         }
                     }
@@ -799,12 +800,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ALL, fieldValues.toArray());
         LOG.debug("Update result {}", result);
-        if (LOG.isDebugEnabled()) {
+        if (LOG.isTraceEnabled()) {
             for (UntypedResultSet.Row row : result) {
-                LOG.debug("Update result row {}", row);
+                LOG.trace("Update result row {}", row);
                 for (ColumnSpecification col : row.getColumns()) {
                     ByteBuffer bytes = row.getBlob(col.name.toString());
-                    LOG.debug("Update result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
+                    LOG.trace("Update result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
                 }
             }
         }
@@ -966,12 +967,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ALL, fieldValues.toArray());
         LOG.debug("Delete result {}", result);
-        if (LOG.isDebugEnabled()) {
+        if (LOG.isTraceEnabled()) {
             for (UntypedResultSet.Row row : result) {
-                LOG.debug("Delete result row {}", row);
+                LOG.trace("Delete result row {}", row);
                 for (ColumnSpecification col : row.getColumns()) {
                     ByteBuffer bytes = row.getBlob(col.name.toString());
-                    LOG.debug("Delete result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
+                    LOG.trace("Delete result row col {} = {}", col.name, (null == bytes ? null : col.type.compose(bytes)));
                 }
             }
         }
@@ -1177,11 +1178,11 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             List<Result.Entry> entryList = getCache(tablespaceName, tableName, queryString).orElseGet(() -> {
                 UntypedResultSet result = QueryProcessor.execute(queryString, ConsistencyLevel.ALL, qv.toArray());
                 LOG.debug("Select result {}", result);
-                if (LOG.isDebugEnabled()) {
+                if (LOG.isTraceEnabled()) {
                     for (UntypedResultSet.Row row : result) {
                         for (ColumnSpecification col : row.getColumns()) {
                             ByteBuffer bytes = row.getBlob(col.name.toString());
-                            LOG.debug("Select result {}({}) = {}", col.name.toString(), col.type.getClass().getSimpleName().toString(),
+                            LOG.trace("Select result {}({}) = {}", col.name.toString(), col.type.getClass().getSimpleName().toString(),
                                     (null == bytes ? null : prettyPrint(col.type.compose(bytes))));
                         }
                     }
@@ -1635,8 +1636,9 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                         for (UntypedResultSet.Row row : insertResult) {
                             LOG.trace("Healing insert result row {}", row);
                             for (ColumnSpecification col : row.getColumns()) {
+                                ByteBuffer bytes = row.getBlob(col.name.toString());
                                 LOG.trace("Healing insert result row col {} = {}", col.name,
-                                        col.type.compose(row.getBlob(col.name.toString())));
+                                        (null == bytes ? null : col.type.compose(bytes)));
                             }
                         }
                     }
@@ -1658,12 +1660,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                     LOG.debug("Healing upsert query {}", query);
 
                     UntypedResultSet insertResult = QueryProcessor.execute(query, ConsistencyLevel.ALL, allValues.toArray());
-                    if (LOG.isDebugEnabled()) {
+                    if (LOG.isTraceEnabled()) {
                         for (UntypedResultSet.Row row : insertResult) {
-                            LOG.debug("Healing upsert result row {}", row);
+                            LOG.trace("Healing upsert result row {}", row);
                             for (ColumnSpecification col : row.getColumns()) {
                                 ByteBuffer bytes = row.getBlob(col.name.toString());
-                                LOG.debug("Healing upsert result row col {} = {}", col.name,
+                                LOG.trace("Healing upsert result row col {} = {}", col.name,
                                         (null == bytes ? null : col.type.compose(bytes)));
                             }
                         }
