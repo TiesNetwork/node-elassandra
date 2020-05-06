@@ -58,10 +58,9 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
 
     protected final TiesServiceConfig config;
 
-    private final TiesServiceScopeBilling billing = new TiesServiceScopeBilling();
-
     private final AtomicReference<List<TiesTransportServer>> transportsRef = new AtomicReference<>();
     private final AtomicReference<TiesServiceSchemaImpl> schemaImplRef = new AtomicReference<>();
+    private final AtomicReference<TiesServiceScopeBilling> billingRef = new AtomicReference<>();
     private final TiesMigrationListenerImpl migrationListener;
 
     public TiesServiceImpl(TiesServiceConfig config) {
@@ -104,11 +103,23 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
         TiesSchemaFactory schemaFactory = schemaConfig.getTiesSchemaFactory();
         requireNonNull(schemaFactory, "TiesDB Schema Factory not found");
         TiesSchema schema = schemaFactory.createSchema(this);
+        initTiesScopeBilling(schema);
         TiesServiceSchemaImpl schemaImpl = new TiesServiceSchemaImpl(schema);
         if (!schemaImplRef.compareAndSet(null, schemaImpl)) {
             throw new TiesConfigurationException("TiesDB Schema have already been initialized");
         }
         schemaImpl.init();
+    }
+
+    protected void initTiesScopeBilling(TiesSchema schema) throws TiesConfigurationException {
+        if (null == schema) {
+            throw new TiesConfigurationException("No TiesDB Schema was found for Billing");
+        }
+        logger.trace("Creating TiesDB Scope Billing for {}...", schema.toString());
+        TiesServiceScopeBilling billing = new TiesServiceScopeBilling(schema);
+        if (!billingRef.compareAndSet(null, billing)) {
+            throw new TiesConfigurationException("TiesDB Scope Billing have already been initialized");
+        }
     }
 
     private void checkDatabaseStructures() throws TiesConfigurationException {
@@ -213,7 +224,7 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
 
     @Override
     public TiesServiceScope newServiceScope() {
-        return new TiesServiceScopeBillingWrapper(new TiesServiceScopeImpl(this), billing);
+        return new TiesServiceScopeBillingWrapper(new TiesServiceScopeImpl(this), billingRef.get());
         // return new TiesServiceScopeImpl(this);
     }
 

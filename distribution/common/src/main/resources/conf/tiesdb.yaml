@@ -5,6 +5,7 @@ config:
     schema: !!SchemaEthereum
       endpointUrl: http://localhost:8545
       contractAddress: 0x22D1B55eBb5BcD17084C3C9D690056875263fEc1
+      nodeAddress: 0x
     transports:
       - !!TransportWebSocket
         #handler: !!JsonHandler

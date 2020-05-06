@@ -101,7 +101,11 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
 
     private abstract class TiesServiceScopePaidAction implements PaidAction {
 
-        protected final Billing bill = billing.newBilling();
+        protected final Billing bill;
+
+        public TiesServiceScopePaidAction(BigInteger billingId) {
+            this.bill = billing.newBilling(billingId);
+        }
 
         @Override
         public Billing getBilling() {
@@ -115,6 +119,7 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
         private final TiesServiceScopeModification action;
 
         public TiesServiceScopePaidModification(TiesServiceScopeModification action) {
+            super(action.getMessageId());
             this.action = action;
         }
 
@@ -148,6 +153,7 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
         private final TiesServiceScopeRecollection action;
 
         public TiesServiceScopePaidRecollection(TiesServiceScopeRecollection action) {
+            super(action.getMessageId());
             this.action = action;
         }
 
@@ -236,6 +242,7 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
         private final TiesServiceScopeHealing action;
 
         public TiesServiceScopePaidHealing(TiesServiceScopeHealing action) {
+            super(action.getMessageId());
             this.action = action;
         }
 

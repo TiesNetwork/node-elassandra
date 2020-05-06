@@ -22,7 +22,7 @@ import static java.util.Objects.requireNonNull;
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.ENTRY_HEADER;
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.ENTRY_VERSION;
 import static network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.getNameId;
-import static network.tiesdb.util.Hex.DEFAULT_HEX;
+import static network.tiesdb.util.Hex.UPPERCASE_HEX;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
@@ -190,10 +190,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             return "";
         }
         if (value.length <= 64) {
-            return DEFAULT_HEX.printHexBinary(value);
+            return UPPERCASE_HEX.printHexBinary(value);
         } else {
-            return DEFAULT_HEX.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
-                    + DEFAULT_HEX.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
+            return UPPERCASE_HEX.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
+                    + UPPERCASE_HEX.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
                     + "(" + value.length + ")";
         }
     }

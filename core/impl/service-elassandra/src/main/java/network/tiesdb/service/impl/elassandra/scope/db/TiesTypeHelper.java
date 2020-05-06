@@ -21,7 +21,7 @@ package network.tiesdb.service.impl.elassandra.scope.db;
 import static java.util.Objects.requireNonNull;
 import static network.tiesdb.type.Duration.DurationTimeUnit.DAY;
 import static network.tiesdb.type.Duration.DurationTimeUnit.NANOSECOND;
-import static network.tiesdb.util.Hex.DEFAULT_HEX;
+import static network.tiesdb.util.Hex.UPPERCASE_HEX;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -84,10 +84,10 @@ public final class TiesTypeHelper {
             return "";
         }
         if (value.length <= 64) {
-            return DEFAULT_HEX.printHexBinary(value);
+            return UPPERCASE_HEX.printHexBinary(value);
         } else {
-            return DEFAULT_HEX.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
-                    + DEFAULT_HEX.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
+            return UPPERCASE_HEX.printHexBinary(Arrays.copyOfRange(value, 0, 32)) + "..." //
+                    + UPPERCASE_HEX.printHexBinary(Arrays.copyOfRange(value, value.length - 32, value.length)) //
                     + "(" + value.length + ")";
         }
     }
