@@ -20,6 +20,8 @@ package network.tiesdb.service.impl.elassandra.scope.db;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.Date;
@@ -53,8 +55,6 @@ import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
 
 public final class TiesSchemaUtil {
-
-    private static final String AND = " AND ";
 
     public static class SchemaDescription {
 
@@ -199,17 +199,18 @@ public final class TiesSchemaUtil {
     private static final String SCHEMA_UPDATE_SCHEDULED = "update_scheduled";
     private static final String SCHEMA_UPDATE_FINISHED = "update_finished";
 
-    private static final String PAYMENTS_TABLE = "payments";
-    private static final String CHEQUES_TABLE = "cheques";
+    private static final String PAYMENT_CHEQUES_TABLE = "cheques";
 
-    private static final String PAYMENTS_CHEQUE_ISSUER = "issuer";
-    private static final String PAYMENTS_CHEQUE_RANGE = "cheque_range";
-    private static final String PAYMENTS_CHEQUE_NUMBER = "cheque_number";
-    private static final String PAYMENTS_CHEQUE_AMOUNT = "amount";
-    private static final String PAYMENTS_CHEQUE_VERSION = "version";
-    private static final String PAYMENTS_CHEQUE_NETWORK = "network";
-    private static final String PAYMENTS_CHEQUE_TIMESTAMP = "issue_timestamp";
-    private static final String PAYMENTS_CHEQUE_RAW = "raw";
+    private static final String PAYMENT_CHEQUE_ISSUER = "issuer";
+    private static final String PAYMENT_CHEQUE_SIGNATURE = "signature";
+    private static final String PAYMENT_CHEQUE_HASH = "hash";
+    private static final String PAYMENT_CHEQUE_RANGE = "range";
+    private static final String PAYMENT_CHEQUE_NUMBER = "number";
+    private static final String PAYMENT_CHEQUE_AMOUNT = "amount";
+    private static final String PAYMENT_CHEQUE_VERSION = "version";
+    private static final String PAYMENT_CHEQUE_NETWORK = "network";
+    private static final String PAYMENT_CHEQUE_TIMESTAMP = "timestamp";
+    private static final String PAYMENT_CHEQUE_PAYEES = "payees";
 
     private static final int DEFAULT_FIELDS_SYNC_RETRY = 3;
     private static final int DEFAULT_CREATION_RETRY = 2;
@@ -277,13 +278,13 @@ public final class TiesSchemaUtil {
         }
         {
             LOG.debug("Checking TiesDB cheques table");
-            CFMetaData sch = Schema.instance.getCFMetaData(KEYSPACE, CHEQUES_TABLE);
+            CFMetaData sch = Schema.instance.getCFMetaData(KEYSPACE, PAYMENT_CHEQUES_TABLE);
             if (null == sch) {
                 createChequesTable();
-                sch = Schema.instance.getCFMetaData(KEYSPACE, CHEQUES_TABLE);
+                sch = Schema.instance.getCFMetaData(KEYSPACE, PAYMENT_CHEQUES_TABLE);
             }
             if (null == sch) {
-                throw new TiesConfigurationException("TiesDB cheques table `" + KEYSPACE + "`.`" + CHEQUES_TABLE + "` not found");
+                throw new TiesConfigurationException("TiesDB cheques table `" + KEYSPACE + "`.`" + PAYMENT_CHEQUES_TABLE + "` not found");
             }
         }
         LOG.debug("TiesDB schema table found");
@@ -334,21 +335,23 @@ public final class TiesSchemaUtil {
     }
 
     private static void createChequesTable() throws TiesConfigurationException {
-        LOG.debug("Creating TiesDB cheques table: `{}`", CHEQUES_TABLE);
+        LOG.debug("Creating TiesDB cheques table: `{}`", PAYMENT_CHEQUES_TABLE);
         QueryProcessor.execute(//
-                "CREATE TABLE " + KEYSPACE + "." + CHEQUES_TABLE + " (\n"//
-                        + PAYMENTS_CHEQUE_ISSUER + " blob,\n"//
-                        + PAYMENTS_CHEQUE_RANGE + " uuid,\n"//
-                        + PAYMENTS_CHEQUE_NUMBER + " bigint,\n"//
-                        + PAYMENTS_CHEQUE_AMOUNT + " bigint,\n"//
-                        + PAYMENTS_CHEQUE_VERSION + " int,\n"//
-                        + PAYMENTS_CHEQUE_NETWORK + " int,\n"//
-                        + PAYMENTS_CHEQUE_TIMESTAMP + " timestamp,\n"//
-                        + PAYMENTS_CHEQUE_RAW + " blob,\n"//
+                "CREATE TABLE " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE + " (\n"//
+                        + PAYMENT_CHEQUE_ISSUER + " blob,\n"//
+                        + PAYMENT_CHEQUE_SIGNATURE + " blob,\n"//
+                        + PAYMENT_CHEQUE_HASH + " blob,\n"//
+                        + PAYMENT_CHEQUE_RANGE + " uuid,\n"//
+                        + PAYMENT_CHEQUE_NUMBER + " varint,\n"//
+                        + PAYMENT_CHEQUE_AMOUNT + " varint,\n"//
+                        + PAYMENT_CHEQUE_VERSION + " int,\n"//
+                        + PAYMENT_CHEQUE_NETWORK + " varint,\n"//
+                        + PAYMENT_CHEQUE_TIMESTAMP + " timestamp,\n"//
+                        + PAYMENT_CHEQUE_PAYEES + " frozen <list <blob>>,\n"//
                         + " PRIMARY KEY (("//
-                        + PAYMENTS_CHEQUE_ISSUER + "), "//
-                        + PAYMENTS_CHEQUE_RANGE + ", "//
-                        + PAYMENTS_CHEQUE_NUMBER + ")\n"//
+                        + PAYMENT_CHEQUE_ISSUER + "), "//
+                        + PAYMENT_CHEQUE_RANGE + ", "//
+                        + PAYMENT_CHEQUE_NUMBER + ")\n"//
                         + ")", //
                 ConsistencyLevel.ALL);
     }
@@ -387,7 +390,7 @@ public final class TiesSchemaUtil {
                         + SCHEMA_UPDATE_FINISHED //
                         + " FROM " + KEYSPACE + "." + SCHEMAS_TABLE //
                         + " WHERE " + SCHEMA_TABLESPACE_NAME + " = ?" //
-                        + AND + SCHEMA_TABLE_NAME + " = ?" //
+                        + " AND " + SCHEMA_TABLE_NAME + " = ?" //
                 , //
                 ConsistencyLevel.ALL, new Object[] { //
                         schema.tablespace, //
@@ -408,7 +411,7 @@ public final class TiesSchemaUtil {
                         + SCHEMA_UPDATE_FINISHED //
                         + " FROM " + KEYSPACE + "." + SCHEMAS_TABLE //
                         + " WHERE " + SCHEMA_UPDATE_SCHEDULED + " <= ?" //
-                        + AND + SCHEMA_UPDATE_FINISHED + " > 0" //
+                        + " AND " + SCHEMA_UPDATE_FINISHED + " > 0" //
                         + " ALLOW FILTERING" //
                 , //
                 ConsistencyLevel.LOCAL_QUORUM, new Object[] { //
@@ -428,7 +431,7 @@ public final class TiesSchemaUtil {
                         + SCHEMA_UPDATE_FINISHED //
                         + " FROM " + KEYSPACE + "." + SCHEMAS_TABLE //
                         + " WHERE " + SCHEMA_UPDATE_SCHEDULED + " > 0" //
-                        + AND + SCHEMA_UPDATE_FINISHED + " = NULL" //
+                        + " AND " + SCHEMA_UPDATE_FINISHED + " = NULL" //
                         + " ALLOW FILTERING" //
                 , //
                 ConsistencyLevel.LOCAL_QUORUM);
@@ -446,7 +449,7 @@ public final class TiesSchemaUtil {
                         + SCHEMA_UPDATE_FINISHED //
                         + " FROM " + KEYSPACE + "." + SCHEMAS_TABLE //
                         + " WHERE " + SCHEMA_UPDATE_SCHEDULED + " = NULL" //
-                        + AND + SCHEMA_UPDATE_FINISHED + " > 0" //
+                        + " AND " + SCHEMA_UPDATE_FINISHED + " > 0" //
                         + " ALLOW FILTERING" //
                 , //
                 ConsistencyLevel.LOCAL_QUORUM);
@@ -464,7 +467,7 @@ public final class TiesSchemaUtil {
                         + SCHEMA_UPDATE_FINISHED //
                         + " FROM " + KEYSPACE + "." + SCHEMAS_TABLE //
                         + " WHERE " + SCHEMA_UPDATE_SCHEDULED + " = NULL" //
-                        + AND + SCHEMA_UPDATE_FINISHED + " = NULL" //
+                        + " AND " + SCHEMA_UPDATE_FINISHED + " = NULL" //
                         + " ALLOW FILTERING" //
                 , //
                 ConsistencyLevel.LOCAL_QUORUM);
@@ -599,7 +602,7 @@ public final class TiesSchemaUtil {
 
         query.append(//
                 " WHERE " + SCHEMA_TABLESPACE_NAME + " = ? " + //
-                        AND + SCHEMA_TABLE_NAME + " = ? ");
+                        " AND " + SCHEMA_TABLE_NAME + " = ? ");
         values.add(schema.tablespace);
         values.add(schema.table);
 
@@ -607,10 +610,10 @@ public final class TiesSchemaUtil {
             query.append(" IF ");
             for (Map.Entry<String, Object> e : conditions.entrySet()) {
                 query.append(e.getKey());
-                query.append(" = ?" + AND);
+                query.append(" = ?" + " AND ");
                 values.add(e.getValue());
             }
-            query.setLength(query.length() - AND.length());
+            query.setLength(query.length() - " AND ".length());
         } else {
             query.append(" IF EXISTS");
         }
@@ -633,7 +636,7 @@ public final class TiesSchemaUtil {
                 "SELECT " + SCHEMA_VERSION//
                         + " FROM " + KEYSPACE + "." + SCHEMAS_TABLE//
                         + " WHERE " + SCHEMA_TABLESPACE_NAME + " = ?" //
-                        + AND + SCHEMA_TABLE_NAME + " = ?" //
+                        + " AND " + SCHEMA_TABLE_NAME + " = ?" //
                 , //
                 ConsistencyLevel.LOCAL_QUORUM, new Object[] { //
                         tablespaceName, //
@@ -660,8 +663,8 @@ public final class TiesSchemaUtil {
                                 + SCHEMA_FIELD_TYPE//
                                 + " FROM " + KEYSPACE + "." + FIELDS_TABLE//
                                 + " WHERE " + SCHEMA_TABLESPACE_NAME + " = ?" //
-                                + AND + SCHEMA_TABLE_NAME + " = ?" //
-                                + AND + SCHEMA_VERSION + " = ?" //
+                                + " AND " + SCHEMA_TABLE_NAME + " = ?" //
+                                + " AND " + SCHEMA_VERSION + " = ?" //
                                 + " ORDER BY " //
                                 + SCHEMA_FIELD_NAME //
                                 + " ASC" //
@@ -758,8 +761,8 @@ public final class TiesSchemaUtil {
         QueryProcessor.execute(//
                 "DELETE FROM " + KEYSPACE + "." + FIELDS_TABLE //
                         + " WHERE " + SCHEMA_TABLESPACE_NAME + " = ?" //
-                        + AND + SCHEMA_TABLE_NAME + " = ?" //
-                        + AND + SCHEMA_VERSION + " = ?" //
+                        + " AND " + SCHEMA_TABLE_NAME + " = ?" //
+                        + " AND " + SCHEMA_VERSION + " = ?" //
                 , //
                 ConsistencyLevel.ALL, new Object[] { //
                         tablespaceName, //
@@ -840,7 +843,7 @@ public final class TiesSchemaUtil {
             QueryProcessor.execute(//
                     "CREATE KEYSPACE IF NOT EXISTS \"" + tablespaceNameId + "\"" //
                             + " WITH REPLICATION = { 'class' : 'org.apache.cassandra.locator.NetworkTopologyStrategy', 'DC1': '1' }" //
-                            + AND + "DURABLE_WRITES = true" //
+                            + " AND " + "DURABLE_WRITES = true" //
                     , //
                     ConsistencyLevel.ALL);
 
@@ -884,4 +887,61 @@ public final class TiesSchemaUtil {
         });
     }
 
+    public static void storePaymentCheque(//
+            ByteBuffer issuer, //
+            ByteBuffer signature, //
+            ByteBuffer hash, //
+            UUID range, //
+            BigInteger number, //
+            BigInteger amount, //
+            int version, //
+            BigInteger network, //
+            Date timestamp, //
+            List<ByteBuffer> payees) throws TiesServiceScopeException {
+        UntypedResultSet result = QueryProcessor.execute(//
+                "INSERT INTO " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE + " ("//
+                        + PAYMENT_CHEQUE_ISSUER + ", " //
+                        + PAYMENT_CHEQUE_SIGNATURE + ", " //
+                        + PAYMENT_CHEQUE_HASH + ", " //
+                        + PAYMENT_CHEQUE_RANGE + ", " //
+                        + PAYMENT_CHEQUE_NUMBER + ", " //
+                        + PAYMENT_CHEQUE_AMOUNT + ", " //
+                        + PAYMENT_CHEQUE_VERSION + ", " //
+                        + PAYMENT_CHEQUE_NETWORK + ", " //
+                        + PAYMENT_CHEQUE_TIMESTAMP + ", " //
+                        + PAYMENT_CHEQUE_PAYEES//
+                        + ") VALUES (" //
+                        + "?, " //
+                        + "?, " //
+                        + "?, " //
+                        + "?, " //
+                        + "?, " //
+                        + "?, " //
+                        + "?, " //
+                        + "?, " //
+                        + "?, " //
+                        + "?" //
+                        + ") IF NOT EXISTS" //
+                , //
+                ConsistencyLevel.ALL, new Object[] { //
+                        issuer, //
+                        signature, //
+                        hash, //
+                        range, //
+                        number, //
+                        amount, //
+                        version, //
+                        network, //
+                        timestamp, //
+                        payees, //
+                });
+
+        if (result.isEmpty()) {
+            throw new TiesServiceScopeException("No update result found");
+        } else if (result.size() > 1) {
+            throw new TiesServiceScopeException("Multiple updates results found");
+        } else if (!result.one().getBoolean("[applied]")) {
+            throw new TiesServiceScopeException("Update failed");
+        }
+    }
 }

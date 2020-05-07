@@ -549,6 +549,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             }
         }
 
+        modificationRequest.checkPrerequisites();
+
         UntypedResultSet result = retry(//
                 r -> !(null == r || r.isEmpty() || r.size() > 1) && r.one().getBoolean("[applied]"), //
                 () -> {
@@ -798,6 +800,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         fieldValues.add(entry.getHeader().getEntryVersion().subtract(BigInteger.ONE));
         fieldValues.addAll(hashValues);
 
+        modificationRequest.checkPrerequisites();
+
         UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ALL, fieldValues.toArray());
         LOG.debug("Update result {}", result);
         if (LOG.isTraceEnabled()) {
@@ -964,6 +968,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
         fieldValues.addAll(keyValues);
         fieldValues.add(TiesTypeHelper.formatToCassandraType(entry.getHeader().getEntryOldHash(), BytesType.instance));
+
+        modificationRequest.checkPrerequisites();
 
         UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ALL, fieldValues.toArray());
         LOG.debug("Delete result {}", result);
@@ -1174,6 +1180,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
         String queryString = qb.toString();
         LOG.debug("{}", queryString);
 
+        recollectionRequest.checkPrerequisites();
+
         try {
             List<Result.Entry> entryList = getCache(tablespaceName, tableName, queryString).orElseGet(() -> {
                 UntypedResultSet result = QueryProcessor.execute(queryString, ConsistencyLevel.ALL, qv.toArray());
@@ -1264,6 +1272,8 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 partKeyColumnsNameIds.add(columnDefinition.name.toString().toUpperCase());
             }
         }
+        
+        schemaRequest.checkPrerequisites();
 
         try {
             List<FieldSchema.Field> fieldList = new LinkedList<>();

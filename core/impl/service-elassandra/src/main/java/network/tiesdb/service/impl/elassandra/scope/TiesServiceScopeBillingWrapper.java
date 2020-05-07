@@ -20,8 +20,6 @@ package network.tiesdb.service.impl.elassandra.scope;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.List;
 
 import network.tiesdb.api.TiesVersion;
 import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeBilling.Billing;
@@ -99,7 +97,7 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
         return billing.checkActionBillingBlank(action);
     }
 
-    private abstract class TiesServiceScopePaidAction implements PaidAction {
+    private abstract class TiesServiceScopePaidAction implements PaidAction, TiesServiceScopeAction {
 
         protected final Billing bill;
 
@@ -112,25 +110,30 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
             return bill;
         }
 
+        protected void checkBilling() throws TiesServiceScopeException {
+            billing.checkActionBillingTotal(this);
+        }
+
+        protected void aquireBilling() throws TiesServiceScopeException {
+            billing.aquireActionBilling(this);
+        }
+
+        @Override
+        public void checkPrerequisites() throws TiesServiceScopeException {
+            PaidAction.super.checkPrerequisites();
+            aquireBilling();
+        }
+
     }
 
     private class TiesServiceScopePaidModification extends TiesServiceScopePaidAction implements TiesServiceScopeModification {
 
         private final TiesServiceScopeModification action;
+        private TiesEntryExtended entry;
 
         public TiesServiceScopePaidModification(TiesServiceScopeModification action) {
             super(action.getMessageId());
             this.action = action;
-        }
-
-        public TiesEntryExtended getEntry() throws TiesServiceScopeException {
-            TiesEntryExtended entry = action.getEntry();
-            bill.addEntry(entry);
-            return entry;
-        }
-
-        public void setResult(Result result) throws TiesServiceScopeException {
-            action.setResult(checkAndPrepareResult(result));
         }
 
         public ActionConsistency getConsistency() {
@@ -141,9 +144,18 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
             return action.getMessageId();
         }
 
-        public Result checkAndPrepareResult(Result result) throws TiesServiceScopeException {
-            billing.checkActionBillingTotal(this);
-            return result;
+        public synchronized TiesEntryExtended getEntry() throws TiesServiceScopeException {
+            if (null == this.entry) {
+                TiesEntryExtended entry = action.getEntry();
+                bill.addEntry(entry);
+                checkBilling();
+                this.entry = entry;
+            }
+            return this.entry;
+        }
+
+        public void setResult(Result result) throws TiesServiceScopeException {
+            action.setResult(result);
         }
 
     }
@@ -151,6 +163,7 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
     private class TiesServiceScopePaidRecollection extends TiesServiceScopePaidAction implements TiesServiceScopeRecollection {
 
         private final TiesServiceScopeRecollection action;
+        private Query query;
 
         public TiesServiceScopePaidRecollection(TiesServiceScopeRecollection action) {
             super(action.getMessageId());
@@ -165,74 +178,22 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
             return action.getMessageId();
         }
 
-        public Query getQuery() throws TiesServiceScopeException {
-            Query query = action.getQuery();
-            bill.addQuery(query);
-            return query;
+        public synchronized Query getQuery() throws TiesServiceScopeException {
+            if (null == this.query) {
+                Query query = action.getQuery();
+                bill.addQuery(query);
+                checkBilling();
+                this.query = query;
+            }
+            return this.query;
         }
 
         public void setResult(Result result) throws TiesServiceScopeException {
-            action.setResult(checkAndPrepareResult(result));
+            action.setResult(result);
         }
 
-        public Result checkAndPrepareResult(Result result) throws TiesServiceScopeException {
-            try {
-                billing.checkActionBillingTotal(this);
-            } catch (TiesServiceScopeException e) {
-                return result.accept(new TiesServiceScopeRecollection.Result.Visitor<TiesServiceScopeRecollection.Result>() {
-
-                    @Override
-                    public Result on(Success success) throws TiesServiceScopeException {
-                        return new TiesServiceScopeRecollection.Partial() {
-
-                            @Override
-                            public List<Throwable> getErrors() {
-                                return Arrays.asList(e);
-                            }
-
-                            @Override
-                            public List<Entry> getEntries() {
-                                return success.getEntries();
-                            }
-
-                        };
-                    }
-
-                    @Override
-                    public Result on(Error error) throws TiesServiceScopeException {
-                        List<Throwable> errors = error.getErrors();
-                        errors.add(e);
-                        return new TiesServiceScopeRecollection.Error() {
-
-                            @Override
-                            public List<Throwable> getErrors() {
-                                return errors;
-                            }
-
-                        };
-                    }
-
-                    @Override
-                    public Result on(Partial partial) throws TiesServiceScopeException {
-                        List<Throwable> errors = partial.getErrors();
-                        errors.add(e);
-                        return new TiesServiceScopeRecollection.Partial() {
-
-                            @Override
-                            public List<Throwable> getErrors() {
-                                return errors;
-                            }
-
-                            @Override
-                            public List<Entry> getEntries() {
-                                return partial.getEntries();
-                            }
-
-                        };
-                    }
-                });
-            }
-            return result;
+        public void checkBilling() throws TiesServiceScopeException {
+            billing.checkActionBillingTotal(this);
         }
 
     }

@@ -19,15 +19,21 @@
 package network.tiesdb.service.impl.elassandra.scope;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.schema.api.TiesSchema;
+import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil;
 import network.tiesdb.service.scope.api.TiesCheque;
 import network.tiesdb.service.scope.api.TiesCheque.Address;
 import network.tiesdb.service.scope.api.TiesEntryExtended;
@@ -48,7 +54,7 @@ public class TiesServiceScopeBilling {
 
         private final BigInteger billingId;
         private BigInteger total = BigInteger.ZERO;
-        private BigInteger paid = BigInteger.ZERO;
+        private List<TiesCheque> paidCheques = new ArrayList<>();
 
         public Billing(BigInteger billingId) {
             this.billingId = billingId;
@@ -59,6 +65,7 @@ public class TiesServiceScopeBilling {
         }
 
         public boolean isBalanced() {
+            BigInteger paid = getPaid();
             // TODO cheques amount should be equal to total billed amount
             // TODO Add cheque calculations. Accepting empty total only for now.
             // return total.compareTo(paid) <= 0;
@@ -66,19 +73,44 @@ public class TiesServiceScopeBilling {
             return true; // TODO FIXME implement balance calculation
         }
 
+        private BigInteger getPaid() {
+            return paidCheques.parallelStream()//
+                    .map(ch -> ch.getChequeAmount()) //
+                    .reduce(BigInteger.ZERO, (acc, ch) -> {
+                        return acc.add(ch);
+                    });
+        }
+
         public synchronized void addEntry(TiesEntryExtended entry) throws TiesServiceScopeException {
-
             total = total.add(BigInteger.TEN); // TODO FIXME Change stub price
-
-            paid = paid.add(processCheques(entry.getCheques()));
-
+            processCheques(entry.getCheques(), Collectors.toCollection(() -> this.paidCheques));
         }
 
         public synchronized void addQuery(Query query) throws TiesServiceScopeException {
-
             total = total.add(BigInteger.ONE); // TODO FIXME Change stub price
+            processCheques(query.getCheques(), Collectors.toCollection(() -> this.paidCheques));
+        }
 
-            paid = paid.add(processCheques(query.getCheques()));
+        public void aquire() throws TiesServiceScopeException {
+            this.paidCheques.parallelStream().forEach(ch -> {
+                try {
+                    List<ByteBuffer> payees = ch.getChequeAddresses().parallelStream().map(addr -> ByteBuffer.wrap(addr.getAddress()))
+                            .collect(Collectors.toList());
+                    TiesSchemaUtil.storePaymentCheque(//
+                            ByteBuffer.wrap(ch.getSigner()), //
+                            ByteBuffer.wrap(ch.getSignature()), //
+                            ByteBuffer.wrap(ch.getHash()), //
+                            ch.getChequeRange(), //
+                            ch.getChequeNumber(), //
+                            ch.getChequeAmount(), //
+                            ch.getChequeVersion().intValueExact(), //
+                            ch.getChequeNetwork(), //
+                            ch.getChequeTimestamp(), //
+                            payees);
+                } catch (TiesServiceScopeException e) {
+                    LOG.error("Failed to aquire cheque {}", ch, e);
+                }
+            });
 
         }
 
@@ -110,13 +142,15 @@ public class TiesServiceScopeBilling {
         return action;
     }
 
-    private BigInteger processCheques(Collection<? extends TiesCheque> cheques) {
-        return cheques.parallelStream() //
+    public <T extends PaidAction> T aquireActionBilling(T action) throws TiesServiceScopeException {
+        getBillingSafe(action).aquire();
+        return action;
+    }
+
+    private <A, R> void processCheques(Collection<? extends TiesCheque> cheques, Collector<TiesCheque, A, R> collector) {
+        cheques.parallelStream() //
                 .filter(ch -> checkCheque(ch)) //
-                .map(ch -> ch.getChequeAmount()) //
-                .reduce(BigInteger.ZERO, (acc, ch) -> {
-                    return acc.add(ch);
-                });
+                .collect(collector);
     }
 
     private Billing getBillingSafe(PaidAction action) throws TiesServiceScopeException {
