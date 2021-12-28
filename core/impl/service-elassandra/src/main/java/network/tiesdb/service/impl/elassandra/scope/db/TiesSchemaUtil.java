@@ -201,16 +201,14 @@ public final class TiesSchemaUtil {
 
     private static final String PAYMENT_CHEQUES_TABLE = "cheques";
 
-    private static final String PAYMENT_CHEQUE_ISSUER = "issuer";
-    private static final String PAYMENT_CHEQUE_SIGNATURE = "signature";
-    private static final String PAYMENT_CHEQUE_HASH = "hash";
-    private static final String PAYMENT_CHEQUE_RANGE = "range";
+    private static final String PAYMENT_CHEQUE_TABLESPACE_NAME = "tablespace_name";
+    private static final String PAYMENT_CHEQUE_TABLE_NAME = "table_name";
+    private static final String PAYMENT_CHEQUE_SESSION = "session";
     private static final String PAYMENT_CHEQUE_NUMBER = "number";
-    private static final String PAYMENT_CHEQUE_AMOUNT = "amount";
+    private static final String PAYMENT_CHEQUE_CRP_AMOUNT = "crop_amount";
+    private static final String PAYMENT_CHEQUE_SIGNER = "signer";
+    private static final String PAYMENT_CHEQUE_SIGNATURE = "signature";
     private static final String PAYMENT_CHEQUE_VERSION = "version";
-    private static final String PAYMENT_CHEQUE_NETWORK = "network";
-    private static final String PAYMENT_CHEQUE_TIMESTAMP = "timestamp";
-    private static final String PAYMENT_CHEQUE_PAYEES = "payees";
 
     private static final int DEFAULT_FIELDS_SYNC_RETRY = 3;
     private static final int DEFAULT_CREATION_RETRY = 2;
@@ -312,8 +310,7 @@ public final class TiesSchemaUtil {
                         + SCHEMA_TABLESPACE_NAME + "," //
                         + SCHEMA_TABLE_NAME + "," //
                         + SCHEMA_VERSION + ")," //
-                        + SCHEMA_FIELD_NAME //
-                        + ")\n" //
+                        + SCHEMA_FIELD_NAME + ")\n" //
                         + ")", //
                 ConsistencyLevel.ALL);
     }
@@ -334,24 +331,32 @@ public final class TiesSchemaUtil {
                 ConsistencyLevel.ALL);
     }
 
+    // private static final String PAYMENT_CHEQUE_TABLESPACE_NAME =
+    // "tablespace_name";
+    // private static final String PAYMENT_CHEQUE_TABLE_NAME = "table_name";
+    // private static final String PAYMENT_CHEQUE_SESSION = "session";
+    // private static final String PAYMENT_CHEQUE_NUMBER = "number";
+    // private static final String PAYMENT_CHEQUE_AMOUNT = "crop_amount";
+    // private static final String PAYMENT_CHEQUE_SIGNER = "signer";
+    // private static final String PAYMENT_CHEQUE_SIGNATURE = "signature";
+    // private static final String PAYMENT_CHEQUE_VERSION = "version";
     private static void createChequesTable() throws TiesConfigurationException {
         LOG.debug("Creating TiesDB cheques table: `{}`", PAYMENT_CHEQUES_TABLE);
         QueryProcessor.execute(//
                 "CREATE TABLE " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE + " (\n"//
-                        + PAYMENT_CHEQUE_ISSUER + " blob,\n"//
-                        + PAYMENT_CHEQUE_SIGNATURE + " blob,\n"//
-                        + PAYMENT_CHEQUE_HASH + " blob,\n"//
-                        + PAYMENT_CHEQUE_RANGE + " uuid,\n"//
+                        + PAYMENT_CHEQUE_TABLESPACE_NAME + " text,\n"//
+                        + PAYMENT_CHEQUE_TABLE_NAME + " text,\n"//
+                        + PAYMENT_CHEQUE_SESSION + " uuid,\n"//
                         + PAYMENT_CHEQUE_NUMBER + " varint,\n"//
-                        + PAYMENT_CHEQUE_AMOUNT + " varint,\n"//
+                        + PAYMENT_CHEQUE_CRP_AMOUNT + " varint,\n"//
+                        + PAYMENT_CHEQUE_SIGNER + " blob,\n"//
+                        + PAYMENT_CHEQUE_SIGNATURE + " blob,\n"//
                         + PAYMENT_CHEQUE_VERSION + " int,\n"//
-                        + PAYMENT_CHEQUE_NETWORK + " varint,\n"//
-                        + PAYMENT_CHEQUE_TIMESTAMP + " timestamp,\n"//
-                        + PAYMENT_CHEQUE_PAYEES + " frozen <list <blob>>,\n"//
                         + " PRIMARY KEY (("//
-                        + PAYMENT_CHEQUE_ISSUER + "), "//
-                        + PAYMENT_CHEQUE_RANGE + ", "//
-                        + PAYMENT_CHEQUE_NUMBER + ")\n"//
+                        + PAYMENT_CHEQUE_TABLESPACE_NAME + ", "//
+                        + PAYMENT_CHEQUE_TABLE_NAME + ", "//
+                        + PAYMENT_CHEQUE_SIGNER + "), "//
+                        + PAYMENT_CHEQUE_SESSION + ")\n"//
                         + ")", //
                 ConsistencyLevel.ALL);
     }
@@ -887,32 +892,26 @@ public final class TiesSchemaUtil {
         });
     }
 
-    public static void storePaymentCheque(//
-            ByteBuffer issuer, //
-            ByteBuffer signature, //
-            ByteBuffer hash, //
-            UUID range, //
+    public static void createChequeSession(//
+            BigInteger version,
+            String tablespaceName, //
+            String tableName, //
+            UUID session, //
             BigInteger number, //
-            BigInteger amount, //
-            int version, //
-            BigInteger network, //
-            Date timestamp, //
-            List<ByteBuffer> payees) throws TiesServiceScopeException {
+            BigInteger cropAmount, //
+            ByteBuffer signer, //
+            ByteBuffer signature) throws TiesServiceScopeException {
         UntypedResultSet result = QueryProcessor.execute(//
                 "INSERT INTO " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE + " ("//
-                        + PAYMENT_CHEQUE_ISSUER + ", " //
-                        + PAYMENT_CHEQUE_SIGNATURE + ", " //
-                        + PAYMENT_CHEQUE_HASH + ", " //
-                        + PAYMENT_CHEQUE_RANGE + ", " //
+                        + PAYMENT_CHEQUE_TABLESPACE_NAME + ", " //
+                        + PAYMENT_CHEQUE_TABLE_NAME + ", " //
+                        + PAYMENT_CHEQUE_SESSION + ", " //
                         + PAYMENT_CHEQUE_NUMBER + ", " //
-                        + PAYMENT_CHEQUE_AMOUNT + ", " //
-                        + PAYMENT_CHEQUE_VERSION + ", " //
-                        + PAYMENT_CHEQUE_NETWORK + ", " //
-                        + PAYMENT_CHEQUE_TIMESTAMP + ", " //
-                        + PAYMENT_CHEQUE_PAYEES//
+                        + PAYMENT_CHEQUE_CRP_AMOUNT + ", " //
+                        + PAYMENT_CHEQUE_SIGNER + ", " //
+                        + PAYMENT_CHEQUE_SIGNATURE + ", " //
+                        + PAYMENT_CHEQUE_VERSION //
                         + ") VALUES (" //
-                        + "?, " //
-                        + "?, " //
                         + "?, " //
                         + "?, " //
                         + "?, " //
@@ -924,18 +923,57 @@ public final class TiesSchemaUtil {
                         + ") IF NOT EXISTS" //
                 , //
                 ConsistencyLevel.ALL, new Object[] { //
-                        issuer, //
-                        signature, //
-                        hash, //
-                        range, //
+                        tablespaceName, //
+                        tableName, //
+                        session, //
                         number, //
-                        amount, //
-                        version, //
-                        network, //
-                        timestamp, //
-                        payees, //
+                        cropAmount, //
+                        signer, //
+                        signature, //
+                        version.intValueExact(), //
                 });
+        if (result.isEmpty()) {
+            throw new TiesServiceScopeException("No update result found");
+        } else if (result.size() > 1) {
+            throw new TiesServiceScopeException("Multiple updates results found");
+        } else if (!result.one().getBoolean("[applied]")) {
+            throw new TiesServiceScopeException("Update failed");
+        }
+    }
 
+    public static void updateChequeSession(//
+            String tablespaceName, //
+            String tableName, //
+            UUID session, //
+            BigInteger number, //
+            BigInteger cropAmount, //
+            BigInteger cropDelta, //
+            ByteBuffer signer, //
+            ByteBuffer signature) throws TiesServiceScopeException {
+        UntypedResultSet result = QueryProcessor.execute(//
+                "UPDATE " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE + " SET "//
+                        + PAYMENT_CHEQUE_NUMBER + " = ?, " //
+                        + PAYMENT_CHEQUE_CRP_AMOUNT + " = ?, " //
+                        + PAYMENT_CHEQUE_SIGNATURE + " = ?" //
+                        + " WHERE " //
+                        + PAYMENT_CHEQUE_TABLESPACE_NAME + " = ? AND " //
+                        + PAYMENT_CHEQUE_TABLE_NAME + " = ? AND " //
+                        + PAYMENT_CHEQUE_SIGNER + " = ? AND " //
+                        + PAYMENT_CHEQUE_SESSION + " = ? " //
+                        + " IF " //
+                        + PAYMENT_CHEQUE_CRP_AMOUNT + " <= ?" //
+                , //
+                ConsistencyLevel.ALL, new Object[] { //
+                        number, //
+                        cropAmount, //
+                        signature, //
+                        // WHERE //
+                        tablespaceName, //
+                        tableName, //
+                        signer, //
+                        session, //
+                        cropAmount.subtract(cropDelta),
+                });
         if (result.isEmpty()) {
             throw new TiesServiceScopeException("No update result found");
         } else if (result.size() > 1) {

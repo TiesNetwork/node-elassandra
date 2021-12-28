@@ -20,13 +20,13 @@ package network.tiesdb.service.impl.elassandra.scope;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.security.SignatureException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.regex.Pattern;
-import java.util.stream.Collector;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,26 +35,119 @@ import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.schema.api.TiesSchema;
 import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil;
 import network.tiesdb.service.scope.api.TiesCheque;
-import network.tiesdb.service.scope.api.TiesCheque.Address;
 import network.tiesdb.service.scope.api.TiesEntryExtended;
 import network.tiesdb.service.scope.api.TiesServiceScopeAction;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
 import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query;
-import network.tiesdb.util.Hex;
 
 public class TiesServiceScopeBilling {
 
     private static final Logger LOG = LoggerFactory.getLogger(TiesServiceScopeBilling.class);
-    private static final BigInteger SLIP0044_BASE = new BigInteger("80000000");
-    private static final Pattern HEX_ADDRESS_PATTERN = Pattern.compile("0x[a-fA-F0-9]+");
-    private final TiesCheque.Address address;
-    private final BigInteger network; // slip-0044 full like 0x8000003c
+    public static final BigInteger SLIP0044_BASE = new BigInteger("80000000");
+
+    public static final BigInteger SESSION_CREATE_FEE = BigInteger.valueOf(100);
+    public static final BigInteger SESSION_ENTRY_FEE = BigInteger.TEN;
+    public static final BigInteger SESSION_QUERY_FEE = BigInteger.ZERO;
+
+    private final TiesSchema schema;
+
+    protected static class ChequeAquiringException extends RuntimeException {
+
+        private static final long serialVersionUID = -4051578732628635680L;
+        private final TiesCheque cheque;
+
+        public ChequeAquiringException(TiesCheque cheque, String message, Throwable cause) {
+            super(message, cause);
+            this.cheque = cheque;
+        }
+
+        public ChequeAquiringException(TiesCheque cheque, String message) {
+            super(message);
+            this.cheque = cheque;
+        }
+
+        public TiesCheque getCheque() {
+            return cheque;
+        }
+
+    }
+
+    protected static interface ChequeMeta {
+
+        BigInteger getChequeNetwork();
+
+        String getTableName();
+
+        String getTablespaceName();
+
+        BigInteger getChequeCropDelta();
+
+        byte[] getSigner();
+
+    }
+
+    protected static class BillingCheque implements TiesCheque {
+
+        private final TiesCheque cheque;
+        private final ChequeMeta meta;
+
+        public BillingCheque(TiesCheque cheque, ChequeMeta meta) {
+            this.cheque = cheque;
+            this.meta = meta;
+        }
+
+        public byte[] getSignature() {
+            return cheque.getSignature();
+        }
+
+        public BigInteger getChequeVersion() {
+            return cheque.getChequeVersion();
+        }
+
+        public UUID getChequeSession() {
+            return cheque.getChequeSession();
+        }
+
+        public BigInteger getChequeNumber() {
+            return cheque.getChequeNumber();
+        }
+
+        public BigInteger getChequeCropAmount() {
+            return cheque.getChequeCropAmount();
+        }
+
+        public BigInteger getChequeCropDelta() {
+            return meta.getChequeCropDelta();
+        }
+
+        public byte[] getSigner() {
+            byte[] signer = cheque.getSigner();
+            return null != signer ? signer : meta.getSigner();
+        }
+
+        public BigInteger getChequeNetwork() {
+            BigInteger chequeNetwork = cheque.getChequeNetwork();
+            chequeNetwork = null != chequeNetwork && !BigInteger.ZERO.equals(chequeNetwork) ? chequeNetwork : meta.getChequeNetwork();
+            return 0 > chequeNetwork.compareTo(SLIP0044_BASE) ? chequeNetwork : chequeNetwork.subtract(SLIP0044_BASE);
+        }
+
+        public String getTableName() {
+            String tableName = cheque.getTableName();
+            return null != tableName ? tableName : meta.getTableName();
+        }
+
+        public String getTablespaceName() {
+            String tablespaceName = cheque.getTablespaceName();
+            return null != tablespaceName ? tablespaceName : meta.getTablespaceName();
+        }
+
+    }
 
     public final class Billing {
 
         private final BigInteger billingId;
         private BigInteger total = BigInteger.ZERO;
-        private List<TiesCheque> paidCheques = new ArrayList<>();
+        private List<BillingCheque> paidCheques = new ArrayList<>();
 
         public Billing(BigInteger billingId) {
             this.billingId = billingId;
@@ -66,52 +159,146 @@ public class TiesServiceScopeBilling {
 
         public boolean isBalanced() {
             BigInteger paid = getPaid();
-            // TODO cheques amount should be equal to total billed amount
-            // TODO Add cheque calculations. Accepting empty total only for now.
-            // return total.compareTo(paid) <= 0;
             LOG.debug("Billing {}\n\tTotal: {}\n\tPaid: {}", billingId, total, paid);
-            return true; // TODO FIXME implement balance calculation
+            return 1 > total.compareTo(paid);
         }
 
         private BigInteger getPaid() {
-            return paidCheques.parallelStream()//
-                    .map(ch -> ch.getChequeAmount()) //
+            return paidCheques.parallelStream() //
+                    .map(ch -> ch.getChequeCropDelta()) //
                     .reduce(BigInteger.ZERO, (acc, ch) -> {
                         return acc.add(ch);
                     });
         }
 
         public synchronized void addEntry(TiesEntryExtended entry) throws TiesServiceScopeException {
-            total = total.add(BigInteger.TEN); // TODO FIXME Change stub price
-            processCheques(entry.getCheques(), Collectors.toCollection(() -> this.paidCheques));
+            total = total.add(SESSION_ENTRY_FEE);
+            try {
+                processCheques(new ChequeMeta() {
+
+                    @Override
+                    public String getTablespaceName() {
+                        return entry.getTablespaceName();
+                    }
+
+                    @Override
+                    public String getTableName() {
+                        return entry.getTableName();
+                    }
+
+                    @Override
+                    public BigInteger getChequeNetwork() {
+                        return BigInteger.valueOf(entry.getHeader().getEntryNetwork());
+                    }
+
+                    @Override
+                    public BigInteger getChequeCropDelta() {
+                        return SESSION_ENTRY_FEE;
+                    }
+
+                    @Override
+                    public byte[] getSigner() {
+                        return entry.getHeader().getSigner();
+                    }
+
+                }, entry.getCheques()).collect(Collectors.toCollection(() -> this.paidCheques));
+            } catch (Throwable th) {
+                throw new TiesServiceScopeException("Failed to add Entry to ServiceScope: " + entry.toString(), th);
+            }
         }
 
         public synchronized void addQuery(Query query) throws TiesServiceScopeException {
-            total = total.add(BigInteger.ONE); // TODO FIXME Change stub price
-            processCheques(query.getCheques(), Collectors.toCollection(() -> this.paidCheques));
+            total = total.add(SESSION_QUERY_FEE);
+            try {
+                processCheques(new ChequeMeta() {
+
+                    @Override
+                    public String getTablespaceName() {
+                        return query.getTablespaceName();
+                    }
+
+                    @Override
+                    public String getTableName() {
+                        return query.getTableName();
+                    }
+
+                    @Override
+                    public BigInteger getChequeCropDelta() {
+                        return SESSION_QUERY_FEE;
+                    }
+
+                    @Override
+                    public BigInteger getChequeNetwork() {
+                        return BigInteger.valueOf(schema.getSchemaNetwork());
+                    }
+
+                    @Override
+                    public byte[] getSigner() {
+                        throw new IllegalStateException("Query Cheques should explicitly include the Signer Address");
+                    }
+
+                }, query.getCheques()).collect(Collectors.toCollection(() -> this.paidCheques));
+            } catch (Throwable th) {
+                throw new TiesServiceScopeException("Failed to add Query to ServiceScope: " + query.toString(), th);
+            }
         }
 
         public void aquire() throws TiesServiceScopeException {
-            this.paidCheques.parallelStream().forEach(ch -> {
-                try {
-                    List<ByteBuffer> payees = ch.getChequeAddresses().parallelStream().map(addr -> ByteBuffer.wrap(addr.getAddress()))
-                            .collect(Collectors.toList());
-                    TiesSchemaUtil.storePaymentCheque(//
-                            ByteBuffer.wrap(ch.getSigner()), //
-                            ByteBuffer.wrap(ch.getSignature()), //
-                            ByteBuffer.wrap(ch.getHash()), //
-                            ch.getChequeRange(), //
-                            ch.getChequeNumber(), //
-                            ch.getChequeAmount(), //
-                            ch.getChequeVersion().intValueExact(), //
-                            ch.getChequeNetwork(), //
-                            ch.getChequeTimestamp(), //
-                            payees);
-                } catch (TiesServiceScopeException e) {
-                    LOG.error("Failed to aquire cheque {}", ch, e);
-                }
-            });
-
+            try {
+                this.paidCheques.parallelStream().forEach(ch -> {
+                    boolean isAquired = false;
+                    TiesServiceScopeException e = null;
+                    if (!isAquired) {
+                        try {
+                            TiesSchemaUtil.updateChequeSession( //
+                                    ch.getTablespaceName(), //
+                                    ch.getTableName(), //
+                                    ch.getChequeSession(), //
+                                    ch.getChequeNumber(), //
+                                    ch.getChequeCropAmount(), //
+                                    ch.getChequeCropDelta(), //
+                                    ByteBuffer.wrap(ch.getSigner()), //
+                                    ByteBuffer.wrap(ch.getSignature()) //
+                            );
+                            isAquired = true;
+                        } catch (TiesServiceScopeException ex) {
+                            e = ex;
+                            LOG.trace("Failed to update cheque {}", ch, ex);
+                        }
+                    }
+                    if (!isAquired) {
+                        if (0 < SESSION_CREATE_FEE.compareTo(ch.getChequeCropAmount().subtract(ch.getChequeCropDelta()))) {
+                            throw new ChequeAquiringException( //
+                                    ch, "Crops amount is insufficient to create a new session for Cheque " + TiesCheque.toString(ch));
+                        }
+                        try {
+                            TiesSchemaUtil.createChequeSession( //
+                                    ch.getChequeVersion(), ch.getTablespaceName(), //
+                                    ch.getTableName(), //
+                                    ch.getChequeSession(), //
+                                    ch.getChequeNumber(), //
+                                    ch.getChequeCropAmount(), //
+                                    ByteBuffer.wrap(ch.getSigner()), //
+                                    ByteBuffer.wrap(ch.getSignature()) //
+                            );
+                            isAquired = true;
+                        } catch (TiesServiceScopeException ex) {
+                            if (null == e) {
+                                e = ex;
+                            } else {
+                                e.addSuppressed(ex);
+                            }
+                            LOG.trace("Failed to update cheque {}", ch, ex);
+                        }
+                    }
+                    if (!isAquired) {
+                        LOG.error("Failed to aquire cheque {}", TiesCheque.toString(ch), e);
+                    }
+                });
+            } catch (ChequeAquiringException ex) {
+                TiesCheque ch = ex.getCheque();
+                throw new TiesServiceScopeException("Cheque not aquired " + ch.getChequeSession() + ":" + ch.getChequeNumber(), ex);
+            }
         }
 
     }
@@ -121,8 +308,7 @@ public class TiesServiceScopeBilling {
     }
 
     public TiesServiceScopeBilling(TiesSchema schema) throws TiesConfigurationException {
-        this.network = BigInteger.valueOf(schema.getSchemaNetwork()).add(SLIP0044_BASE);
-        this.address = parseNodeAddress(schema.getNodeAddress());
+        this.schema = schema;
     }
 
     public <T extends PaidAction> T checkActionBillingBlank(T action) throws TiesServiceScopeException {
@@ -147,10 +333,17 @@ public class TiesServiceScopeBilling {
         return action;
     }
 
-    private <A, R> void processCheques(Collection<? extends TiesCheque> cheques, Collector<TiesCheque, A, R> collector) {
-        cheques.parallelStream() //
-                .filter(ch -> checkCheque(ch)) //
-                .collect(collector);
+    private Stream<? extends BillingCheque> processCheques(ChequeMeta meta, Collection<? extends TiesCheque> cheques) {
+        return cheques.parallelStream() //
+                .map(ch -> new BillingCheque(ch, meta)) //
+                .filter(ch -> {
+                    try {
+                        return checkCheque(ch);
+                    } catch (TiesServiceScopeException ex) {
+                        LOG.warn("Failed to validate cheque: {}.{}", ch.getChequeSession(), ch.getChequeNumber(), ex);
+                        return false;
+                    }
+                });
     }
 
     private Billing getBillingSafe(PaidAction action) throws TiesServiceScopeException {
@@ -165,70 +358,15 @@ public class TiesServiceScopeBilling {
         return new Billing(billingId);
     }
 
-    public boolean checkCheque(TiesCheque ch) {
+    public boolean checkCheque(BillingCheque ch) throws TiesServiceScopeException {
         BigInteger network = ch.getChequeNetwork();
-        if (network.compareTo(SLIP0044_BASE) < 0) {
-            network = network.add(SLIP0044_BASE);
-        }
-        if (network.compareTo(TiesServiceScopeBilling.this.network) != 0)
+        if (this.schema.getSchemaNetwork() != network.shortValueExact())
             return false;
-        if (!ch.getChequeAddresses().contains(TiesServiceScopeBilling.this.address)) {
-            return false;
-        }
-        return true;
-    }
-
-    private Address parseNodeAddress(String nodeAddressString) throws TiesConfigurationException {
-        if (null == nodeAddressString) {
-            throw new TiesConfigurationException("Missing node address");
-        }
-        if (!HEX_ADDRESS_PATTERN.matcher(nodeAddressString).matches()) {
-            throw new TiesConfigurationException("Malformed node address: " + nodeAddressString);
-        }
         try {
-            byte[] nodeAddress = Hex.UPPERCASE_HEX.parseHexBinary(nodeAddressString.substring(2).toUpperCase());
-            return new ChequeNodeAddress(nodeAddress);
-        } catch (Throwable th) {
-            throw new TiesConfigurationException("Malformed node address: " + nodeAddressString, th);
+            return this.schema.isChequeValid(ch);
+        } catch (SignatureException ex) {
+            throw new TiesServiceScopeException("Cheque validation failed for: " + TiesCheque.toString(ch) + ".", ex);
         }
-
-    }
-
-    protected static class ChequeNodeAddress implements TiesCheque.Address {
-
-        private final byte[] address;
-
-        public ChequeNodeAddress(byte[] address) {
-            this.address = address;
-        }
-
-        @Override
-        public byte[] getAddress() {
-            return this.address;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + Arrays.hashCode(address);
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (!Address.class.isAssignableFrom(obj.getClass()))
-                return false;
-            Address other = (Address) obj;
-            if (!Arrays.equals(address, other.getAddress()))
-                return false;
-            return true;
-        }
-
     }
 
 }

@@ -120,7 +120,6 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
 
         @Override
         public void checkPrerequisites() throws TiesServiceScopeException {
-            PaidAction.super.checkPrerequisites();
             aquireBilling();
         }
 
