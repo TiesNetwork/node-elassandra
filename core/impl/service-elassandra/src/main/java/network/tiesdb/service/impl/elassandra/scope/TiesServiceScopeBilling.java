@@ -122,7 +122,7 @@ public class TiesServiceScopeBilling {
 
         public byte[] getSigner() {
             byte[] signer = cheque.getSigner();
-            return null != signer ? signer : meta.getSigner();
+            return null != signer && signer.length > 0 ? signer : meta.getSigner();
         }
 
         public BigInteger getChequeNetwork() {
@@ -133,12 +133,12 @@ public class TiesServiceScopeBilling {
 
         public String getTableName() {
             String tableName = cheque.getTableName();
-            return null != tableName ? tableName : meta.getTableName();
+            return null != tableName && !tableName.isEmpty() ? tableName : meta.getTableName();
         }
 
         public String getTablespaceName() {
             String tablespaceName = cheque.getTablespaceName();
-            return null != tablespaceName ? tablespaceName : meta.getTablespaceName();
+            return null != tablespaceName && !tablespaceName.isEmpty() ? tablespaceName : meta.getTablespaceName();
         }
 
     }
@@ -269,7 +269,7 @@ public class TiesServiceScopeBilling {
                     if (!isAquired) {
                         if (0 < SESSION_CREATE_FEE.compareTo(ch.getChequeCropAmount().subtract(ch.getChequeCropDelta()))) {
                             throw new ChequeAquiringException( //
-                                    ch, "Crops amount is insufficient to create a new session for Cheque " + TiesCheque.toString(ch));
+                                    ch, "Crops amount is insufficient to create a new session for Cheque " + printCheque(ch));
                         }
                         try {
                             TiesSchemaUtil.createChequeSession( //
@@ -292,7 +292,7 @@ public class TiesServiceScopeBilling {
                         }
                     }
                     if (!isAquired) {
-                        LOG.error("Failed to aquire cheque {}", TiesCheque.toString(ch), e);
+                        LOG.error("Failed to aquire cheque {}", printCheque(ch), e);
                     }
                 });
             } catch (ChequeAquiringException ex) {
@@ -365,8 +365,23 @@ public class TiesServiceScopeBilling {
         try {
             return this.schema.isChequeValid(ch);
         } catch (SignatureException ex) {
-            throw new TiesServiceScopeException("Cheque validation failed for: " + TiesCheque.toString(ch) + ".", ex);
+            throw new TiesServiceScopeException("Cheque validation failed for: " + printCheque(ch) + ".", ex);
         }
+    }
+
+    protected static String printCheque(TiesCheque cheque) {
+        byte[] signer = cheque.getSigner();
+        byte[] signature = cheque.getSignature();
+        return "TiesCheque [tablespaceName=" + cheque.getTablespaceName() //
+                + ", tableName=" + cheque.getTableName() //
+                + ", signer=" + (null == signer ? "null" : new BigInteger(1, signer).toString(16)) //
+                + ", chequeSession=" + cheque.getChequeSession() //
+                + ", chequeNumber=" + cheque.getChequeNumber() //
+                + ", chequeCropAmount=" + cheque.getChequeCropAmount() //
+                + ", signature=" + (null == signature ? "null" : new BigInteger(1, signature).toString(16)) //
+                + ", chequeNetwork=" + cheque.getChequeNetwork() //
+                + ", chequeVersion=" + cheque.getChequeVersion() //
+                + "]";
     }
 
 }
