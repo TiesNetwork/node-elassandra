@@ -365,4 +365,8 @@ public class TiesServiceSchemaImpl implements TiesDaemon {
         }
     }
 
+    public TiesSchema getSchema() {
+        return this.schema;
+    }
+
 }

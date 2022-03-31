@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,6 +68,7 @@ import com.tiesdb.lib.crypto.digest.DigestManager;
 import com.tiesdb.lib.crypto.digest.api.Digest;
 
 import network.tiesdb.api.TiesVersion;
+import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.service.impl.elassandra.TiesServiceImpl;
 import network.tiesdb.service.impl.elassandra.scope.db.ByteArrayType;
 import network.tiesdb.service.impl.elassandra.scope.db.CassandraTypeHelper;
@@ -76,26 +78,30 @@ import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.HeaderFiel
 import network.tiesdb.service.impl.elassandra.scope.db.TiesTypeHelper;
 import network.tiesdb.service.scope.api.TiesEntryHeader;
 import network.tiesdb.service.scope.api.TiesServiceScope;
+import network.tiesdb.service.scope.api.TiesServiceScopeBillingAction;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
-import network.tiesdb.service.scope.api.TiesServiceScopeHealing;
-import network.tiesdb.service.scope.api.TiesServiceScopeModification;
+import network.tiesdb.service.scope.api.TiesServiceScopeHealingAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeModificationAction;
+import network.tiesdb.service.scope.api.TiesCheque;
 import network.tiesdb.service.scope.api.TiesEntryExtended;
 import network.tiesdb.service.scope.api.TiesEntryExtended.TypedHashField;
 import network.tiesdb.service.scope.api.TiesEntryExtended.TypedValueField;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Filter;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Function;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Function.Argument;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query.Selector;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Result;
-import network.tiesdb.service.scope.api.TiesServiceScopeResult;
-import network.tiesdb.service.scope.api.TiesServiceScopeSchema;
-import network.tiesdb.service.scope.api.TiesServiceScopeSchema.FieldSchema;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollectionAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollectionAction.Query;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollectionAction.Query.Filter;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollectionAction.Query.Function;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollectionAction.Query.Function.Argument;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollectionAction.Query.Selector;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollectionAction.Result;
+import network.tiesdb.service.scope.api.TiesServiceScopeResultAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeSchemaAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeSchemaAction.FieldSchema;
 
 public class TiesServiceScopeImpl implements TiesServiceScope {
 
     private static final Logger LOG = LoggerFactory.getLogger(TiesServiceScopeImpl.class);
+
+    public static final BigInteger SLIP0044_BASE = new BigInteger("80000000");
 
     private static abstract class ResultField implements Result.Field {
 
@@ -256,12 +262,14 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
     }
 
-    private static final Map<String, Map<String, Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>>>> resultCache = new ConcurrentHashMap<>();
+    private static final Map<String, Map<String, Map<String, SoftReference<List<TiesServiceScopeRecollectionAction.Result.Entry>>>>> resultCache = new ConcurrentHashMap<>();
 
     private final TiesServiceImpl service;
+    private final BigInteger schemaNetwork;
 
-    public TiesServiceScopeImpl(TiesServiceImpl service) {
+    public TiesServiceScopeImpl(TiesServiceImpl service) throws TiesConfigurationException {
         this.service = service;
+        this.schemaNetwork = BigInteger.valueOf(service.getSchemaImpl().getSchema().getSchemaNetwork());
         LOG.debug(this + " is opened");
     }
 
@@ -271,7 +279,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     private void addCache(String tablespaceName, String tableName, String queryString,
-            List<TiesServiceScopeRecollection.Result.Entry> entryList) {
+            List<TiesServiceScopeRecollectionAction.Result.Entry> entryList) {
         resultCache//
                 .computeIfAbsent(tablespaceName, (key) -> new ConcurrentHashMap<>()) // get tablespace cache
                 .computeIfAbsent(tableName, (key) -> new ConcurrentHashMap<>()) // get table cache
@@ -287,16 +295,16 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
 
     }
 
-    private Optional<List<TiesServiceScopeRecollection.Result.Entry>> getCache(String tablespaceName, String tableName,
+    private Optional<List<TiesServiceScopeRecollectionAction.Result.Entry>> getCache(String tablespaceName, String tableName,
             String queryString) {
-        List<TiesServiceScopeRecollection.Result.Entry> result = null;
+        List<TiesServiceScopeRecollectionAction.Result.Entry> result = null;
         {
-            Map<String, Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>>> tsCache = resultCache
+            Map<String, Map<String, SoftReference<List<TiesServiceScopeRecollectionAction.Result.Entry>>>> tsCache = resultCache
                     .get(tablespaceName);
             if (null != tsCache) {
-                Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>> tbCache = tsCache.get(tableName);
+                Map<String, SoftReference<List<TiesServiceScopeRecollectionAction.Result.Entry>>> tbCache = tsCache.get(tableName);
                 if (null != tbCache) {
-                    AtomicReference<List<TiesServiceScopeRecollection.Result.Entry>> refValue = new AtomicReference<>();
+                    AtomicReference<List<TiesServiceScopeRecollectionAction.Result.Entry>> refValue = new AtomicReference<>();
                     try {
                         tbCache.computeIfPresent(queryString, (key, value) -> {
                             if (refValue.compareAndSet(null, value.get())) {
@@ -319,9 +327,10 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     private void clearCache(String tablespaceName, String tableName) {
-        Map<String, Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>>> tsCache = resultCache.get(tablespaceName);
+        Map<String, Map<String, SoftReference<List<TiesServiceScopeRecollectionAction.Result.Entry>>>> tsCache = resultCache
+                .get(tablespaceName);
         if (null != tsCache) {
-            Map<String, SoftReference<List<TiesServiceScopeRecollection.Result.Entry>>> tbCache = tsCache.get(tableName);
+            Map<String, SoftReference<List<TiesServiceScopeRecollectionAction.Result.Entry>>> tbCache = tsCache.get(tableName);
             if (null != tbCache) {
                 tbCache.clear();
             }
@@ -455,7 +464,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
-    public void insert(TiesServiceScopeModification modificationRequest) throws TiesServiceScopeException {
+    public void insert(TiesServiceScopeModificationAction modificationRequest) throws TiesServiceScopeException {
 
         TiesEntryExtended entry = modificationRequest.getEntry();
         String tablespaceName = entry.getTablespaceName();
@@ -638,7 +647,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Insertion failed");
         }
         clearCache(tablespaceName, tableName);
-        modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
+        modificationRequest.setResult(new TiesServiceScopeModificationAction.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
                 return entry.getHeader().getHash();
@@ -647,7 +656,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
-    public void update(TiesServiceScopeModification modificationRequest) throws TiesServiceScopeException {
+    public void update(TiesServiceScopeModificationAction modificationRequest) throws TiesServiceScopeException {
 
         TiesEntryExtended entry = modificationRequest.getEntry();
 
@@ -822,7 +831,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Update failed for " + entry);
         }
         clearCache(tablespaceName, tableName);
-        modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
+        modificationRequest.setResult(new TiesServiceScopeModificationAction.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
                 return entry.getHeader().getHash();
@@ -831,7 +840,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
-    public void delete(TiesServiceScopeModification modificationRequest) throws TiesServiceScopeException {
+    public void delete(TiesServiceScopeModificationAction modificationRequest) throws TiesServiceScopeException {
 
         TiesEntryExtended entry = modificationRequest.getEntry();
 
@@ -991,7 +1000,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Delete failed");
         }
         clearCache(tablespaceName, tableName);
-        modificationRequest.setResult(new TiesServiceScopeModification.Result.Success() {
+        modificationRequest.setResult(new TiesServiceScopeModificationAction.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
                 return entry.getHeader().getHash();
@@ -1000,7 +1009,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
-    public void select(TiesServiceScopeRecollection recollectionRequest) throws TiesServiceScopeException {
+    public void select(TiesServiceScopeRecollectionAction recollectionRequest) throws TiesServiceScopeException {
 
         Query request = recollectionRequest.getQuery();
 
@@ -1206,7 +1215,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 addCache(tablespaceName, tableName, queryString, updatedEntryList);
                 return updatedEntryList;
             });
-            recollectionRequest.setResult(new TiesServiceScopeRecollection.Success() {
+            recollectionRequest.setResult(new TiesServiceScopeRecollectionAction.Success() {
                 @Override
                 public List<Entry> getEntries() {
                     return entryList;
@@ -1219,7 +1228,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                     .map((e) -> e.getMessage()) //
                     .map((msg) -> msg.startsWith("Undefined column name")) //
                     .orElse(false)) {
-                recollectionRequest.setResult(new TiesServiceScopeRecollection.Error() {
+                recollectionRequest.setResult(new TiesServiceScopeRecollectionAction.Error() {
                     @Override
                     public List<Throwable> getErrors() {
                         return Arrays.asList(th);
@@ -1249,7 +1258,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
-    public void schema(TiesServiceScopeSchema schemaRequest) throws TiesServiceScopeException {
+    public void schema(TiesServiceScopeSchemaAction schemaRequest) throws TiesServiceScopeException {
 
         String tablespaceName = schemaRequest.getTablespaceName();
         String tableName = schemaRequest.getTableName();
@@ -1272,7 +1281,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
                 partKeyColumnsNameIds.add(columnDefinition.name.toString().toUpperCase());
             }
         }
-        
+
         schemaRequest.checkPrerequisites();
 
         try {
@@ -1315,6 +1324,79 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw e.unwrap();
         }
 
+    }
+
+    @Override
+    public void billing(TiesServiceScopeBillingAction action) throws TiesServiceScopeException {
+        action.checkPrerequisites();
+        try {
+            List<TiesCheque> cheques = new LinkedList<>();
+            TiesSchemaUtil.findCheques(cd -> cheques.add( //
+                    new TiesCheque() {
+
+                        private final byte[] signer = toArray(cd.getSigner());
+                        private final byte[] signature = toArray(cd.getSignature());
+                        private BigInteger version = BigInteger.valueOf(cd.getVersion());
+
+                        @Override
+                        public byte[] getSigner() {
+                            return signer;
+                        }
+
+                        @Override
+                        public byte[] getSignature() {
+                            return signature;
+                        }
+
+                        @Override
+                        public String getTablespaceName() {
+                            return cd.getTablespaceName();
+                        }
+
+                        @Override
+                        public String getTableName() {
+                            return cd.getTableName();
+                        }
+
+                        @Override
+                        public BigInteger getChequeVersion() {
+                            return version;
+                        }
+
+                        @Override
+                        public UUID getChequeSession() {
+                            return cd.getSession();
+                        }
+
+                        @Override
+                        public BigInteger getChequeNumber() {
+                            return cd.getNumber();
+                        }
+
+                        @Override
+                        public BigInteger getChequeNetwork() {
+                            return schemaNetwork;
+                        }
+
+                        @Override
+                        public BigInteger getChequeCropAmount() {
+                            return cd.getCropAmount();
+                        }
+                    }), //
+                    action.getChequesCropAmountThreshold(), //
+                    action.getChequesCountLimit() //
+            );
+            action.setResult(cheques);
+        } catch (TiesServiceScopeException e) {
+            throw new TiesServiceScopeExceptionWrapper(e);
+        }
+
+    }
+
+    private static byte[] toArray(ByteBuffer buffer) {
+        byte[] array = new byte[buffer.remaining()];
+        buffer.get(array);
+        return array;
     }
 
     private static TiesEntryHeader newEntryHeader(Row row, CFMetaData cfMetaData) throws TiesServiceScopeException {
@@ -1524,12 +1606,12 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
     }
 
     @Override
-    public void result(TiesServiceScopeResult result) throws TiesServiceScopeException {
+    public void result(TiesServiceScopeResultAction result) throws TiesServiceScopeException {
         throw new TiesServiceScopeException("Node should not handle any result");
     }
 
     @Override
-    public void heal(TiesServiceScopeHealing healingRequest) throws TiesServiceScopeException {
+    public void heal(TiesServiceScopeHealingAction healingRequest) throws TiesServiceScopeException {
         TiesEntryExtended entry = healingRequest.getEntry();
         String tablespaceName = entry.getTablespaceName();
         String tableName = entry.getTableName();
@@ -1710,7 +1792,7 @@ public class TiesServiceScopeImpl implements TiesServiceScope {
             throw new TiesServiceScopeException("Healing failed");
         }
         clearCache(tablespaceName, tableName);
-        healingRequest.setResult(new TiesServiceScopeHealing.Result.Success() {
+        healingRequest.setResult(new TiesServiceScopeHealingAction.Result.Success() {
             @Override
             public byte[] getHeaderHash() {
                 return entry.getHeader().getHash();

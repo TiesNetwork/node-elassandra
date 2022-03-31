@@ -43,6 +43,7 @@ import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeBillingWrapp
 import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeImpl;
 import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil;
 import network.tiesdb.service.scope.api.TiesServiceScope;
+import network.tiesdb.service.scope.api.TiesServiceScopeException;
 import network.tiesdb.transport.api.TiesTransportServer;
 
 /**
@@ -223,9 +224,13 @@ public abstract class TiesServiceImpl implements TiesService, Runnable {
     }
 
     @Override
-    public TiesServiceScope newServiceScope() {
-        return new TiesServiceScopeBillingWrapper(new TiesServiceScopeImpl(this), billingRef.get());
+    public TiesServiceScope newServiceScope() throws TiesServiceScopeException {
         // return new TiesServiceScopeImpl(this);
+        try {
+            return new TiesServiceScopeBillingWrapper(new TiesServiceScopeImpl(this), billingRef.get());
+        } catch (TiesConfigurationException e) {
+            throw new TiesServiceScopeException("Failed to open TiesDB Service Scope", e);
+        }
     }
 
 }

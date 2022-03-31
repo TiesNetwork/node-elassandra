@@ -34,16 +34,18 @@ import org.slf4j.LoggerFactory;
 import network.tiesdb.exception.TiesConfigurationException;
 import network.tiesdb.schema.api.TiesSchema;
 import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil;
+import network.tiesdb.service.impl.elassandra.scope.db.TiesSchemaUtil.ChequeDescription;
 import network.tiesdb.service.scope.api.TiesCheque;
 import network.tiesdb.service.scope.api.TiesEntryExtended;
 import network.tiesdb.service.scope.api.TiesServiceScopeAction;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection.Query;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollectionAction.Query;
+
+import static network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeImpl.SLIP0044_BASE;
 
 public class TiesServiceScopeBilling {
 
     private static final Logger LOG = LoggerFactory.getLogger(TiesServiceScopeBilling.class);
-    public static final BigInteger SLIP0044_BASE = new BigInteger("80000000");
 
     public static final BigInteger SESSION_CREATE_FEE = BigInteger.valueOf(100);
     public static final BigInteger SESSION_ENTRY_FEE = BigInteger.TEN;
@@ -250,16 +252,7 @@ public class TiesServiceScopeBilling {
                     TiesServiceScopeException e = null;
                     if (!isAquired) {
                         try {
-                            TiesSchemaUtil.updateChequeSession( //
-                                    ch.getTablespaceName(), //
-                                    ch.getTableName(), //
-                                    ch.getChequeSession(), //
-                                    ch.getChequeNumber(), //
-                                    ch.getChequeCropAmount(), //
-                                    ch.getChequeCropDelta(), //
-                                    ByteBuffer.wrap(ch.getSigner()), //
-                                    ByteBuffer.wrap(ch.getSignature()) //
-                            );
+                            TiesSchemaUtil.updateChequeSession(getChequeDescription(ch), ch.getChequeCropDelta());
                             isAquired = true;
                         } catch (TiesServiceScopeException ex) {
                             e = ex;
@@ -272,15 +265,7 @@ public class TiesServiceScopeBilling {
                                     ch, "Crops amount is insufficient to create a new session for Cheque " + printCheque(ch));
                         }
                         try {
-                            TiesSchemaUtil.createChequeSession( //
-                                    ch.getChequeVersion(), ch.getTablespaceName(), //
-                                    ch.getTableName(), //
-                                    ch.getChequeSession(), //
-                                    ch.getChequeNumber(), //
-                                    ch.getChequeCropAmount(), //
-                                    ByteBuffer.wrap(ch.getSigner()), //
-                                    ByteBuffer.wrap(ch.getSignature()) //
-                            );
+                            TiesSchemaUtil.createChequeSession(getChequeDescription(ch));
                             isAquired = true;
                         } catch (TiesServiceScopeException ex) {
                             if (null == e) {
@@ -301,6 +286,18 @@ public class TiesServiceScopeBilling {
             }
         }
 
+    }
+
+    protected ChequeDescription getChequeDescription(BillingCheque ch) {
+        return new ChequeDescription(ch.getChequeVersion().intValueExact(), //
+                ch.getTablespaceName(), //
+                ch.getTableName(), //
+                ch.getChequeSession(), //
+                ch.getChequeNumber(), //
+                ch.getChequeCropAmount(), //
+                ByteBuffer.wrap(ch.getSigner()), //
+                ByteBuffer.wrap(ch.getSignature()) //
+        );
     }
 
     interface PaidAction extends TiesServiceScopeAction {

@@ -27,12 +27,13 @@ import network.tiesdb.service.impl.elassandra.scope.TiesServiceScopeBilling.Paid
 import network.tiesdb.service.scope.api.TiesEntryExtended;
 import network.tiesdb.service.scope.api.TiesServiceScope;
 import network.tiesdb.service.scope.api.TiesServiceScopeAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeBillingAction;
 import network.tiesdb.service.scope.api.TiesServiceScopeException;
-import network.tiesdb.service.scope.api.TiesServiceScopeHealing;
-import network.tiesdb.service.scope.api.TiesServiceScopeModification;
-import network.tiesdb.service.scope.api.TiesServiceScopeRecollection;
-import network.tiesdb.service.scope.api.TiesServiceScopeResult;
-import network.tiesdb.service.scope.api.TiesServiceScopeSchema;
+import network.tiesdb.service.scope.api.TiesServiceScopeHealingAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeModificationAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeRecollectionAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeResultAction;
+import network.tiesdb.service.scope.api.TiesServiceScopeSchemaAction;
 
 public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
 
@@ -53,43 +54,47 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
         return scope.getServiceVersion();
     }
 
-    public void insert(TiesServiceScopeModification action) throws TiesServiceScopeException {
+    public void insert(TiesServiceScopeModificationAction action) throws TiesServiceScopeException {
         scope.insert(wrap(action));
     }
 
-    public void update(TiesServiceScopeModification action) throws TiesServiceScopeException {
+    public void update(TiesServiceScopeModificationAction action) throws TiesServiceScopeException {
         scope.update(wrap(action));
     }
 
-    public void delete(TiesServiceScopeModification action) throws TiesServiceScopeException {
+    public void delete(TiesServiceScopeModificationAction action) throws TiesServiceScopeException {
         scope.delete(wrap(action));
     }
 
-    public void select(TiesServiceScopeRecollection action) throws TiesServiceScopeException {
+    public void select(TiesServiceScopeRecollectionAction action) throws TiesServiceScopeException {
         scope.select(wrap(action));
     }
 
-    public void heal(TiesServiceScopeHealing action) throws TiesServiceScopeException {
+    public void heal(TiesServiceScopeHealingAction action) throws TiesServiceScopeException {
         scope.heal(wrap(action));
     }
 
-    public void schema(TiesServiceScopeSchema action) throws TiesServiceScopeException {
+    public void schema(TiesServiceScopeSchemaAction action) throws TiesServiceScopeException {
         scope.schema(action);
     }
 
-    public void result(TiesServiceScopeResult action) throws TiesServiceScopeException {
+    public void result(TiesServiceScopeResultAction action) throws TiesServiceScopeException {
         scope.result(action);
     }
 
-    private TiesServiceScopeModification wrap(TiesServiceScopeModification action) throws TiesServiceScopeException {
+    public void billing(TiesServiceScopeBillingAction action) throws TiesServiceScopeException {
+        scope.billing(action);
+    }
+
+    private TiesServiceScopeModificationAction wrap(TiesServiceScopeModificationAction action) throws TiesServiceScopeException {
         return check(new TiesServiceScopePaidModification(action));
     }
 
-    private TiesServiceScopeRecollection wrap(TiesServiceScopeRecollection action) throws TiesServiceScopeException {
+    private TiesServiceScopeRecollectionAction wrap(TiesServiceScopeRecollectionAction action) throws TiesServiceScopeException {
         return check(new TiesServiceScopePaidRecollection(action));
     }
 
-    private TiesServiceScopeHealing wrap(TiesServiceScopeHealing action) throws TiesServiceScopeException {
+    private TiesServiceScopeHealingAction wrap(TiesServiceScopeHealingAction action) throws TiesServiceScopeException {
         return check(new TiesServiceScopePaidHealing(action));
     }
 
@@ -125,12 +130,12 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
 
     }
 
-    private class TiesServiceScopePaidModification extends TiesServiceScopePaidAction implements TiesServiceScopeModification {
+    private class TiesServiceScopePaidModification extends TiesServiceScopePaidAction implements TiesServiceScopeModificationAction {
 
-        private final TiesServiceScopeModification action;
+        private final TiesServiceScopeModificationAction action;
         private TiesEntryExtended entry;
 
-        public TiesServiceScopePaidModification(TiesServiceScopeModification action) {
+        public TiesServiceScopePaidModification(TiesServiceScopeModificationAction action) {
             super(action.getMessageId());
             this.action = action;
         }
@@ -159,12 +164,12 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
 
     }
 
-    private class TiesServiceScopePaidRecollection extends TiesServiceScopePaidAction implements TiesServiceScopeRecollection {
+    private class TiesServiceScopePaidRecollection extends TiesServiceScopePaidAction implements TiesServiceScopeRecollectionAction {
 
-        private final TiesServiceScopeRecollection action;
+        private final TiesServiceScopeRecollectionAction action;
         private Query query;
 
-        public TiesServiceScopePaidRecollection(TiesServiceScopeRecollection action) {
+        public TiesServiceScopePaidRecollection(TiesServiceScopeRecollectionAction action) {
             super(action.getMessageId());
             this.action = action;
         }
@@ -197,11 +202,11 @@ public class TiesServiceScopeBillingWrapper implements TiesServiceScope {
 
     }
 
-    private class TiesServiceScopePaidHealing extends TiesServiceScopePaidAction implements TiesServiceScopeHealing {
+    private class TiesServiceScopePaidHealing extends TiesServiceScopePaidAction implements TiesServiceScopeHealingAction {
 
-        private final TiesServiceScopeHealing action;
+        private final TiesServiceScopeHealingAction action;
 
-        public TiesServiceScopePaidHealing(TiesServiceScopeHealing action) {
+        public TiesServiceScopePaidHealing(TiesServiceScopeHealingAction action) {
             super(action.getMessageId());
             this.action = action;
         }
