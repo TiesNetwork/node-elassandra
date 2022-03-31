@@ -18,11 +18,14 @@
  */
 package network.tiesdb.service.impl.elassandra.scope.db;
 
+import static network.tiesdb.util.Hex.UPPERCASE_HEX;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -32,15 +35,20 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,6 +166,113 @@ public final class TiesSchemaUtil {
                 if (other.type != null)
                     return false;
             } else if (!type.equals(other.type))
+                return false;
+            return true;
+        }
+
+    }
+
+    public static class ChequeDescription {
+
+        private final Integer version;
+        private final String tablespaceName;
+        private final String tableName;
+        private final UUID session;
+        private final BigInteger number;
+        private final BigInteger cropAmount;
+        private final ByteBuffer signer;
+        private final ByteBuffer signature;
+
+        public ChequeDescription( //
+                Integer version, //
+                String tablespaceName, //
+                String tableName, //
+                UUID session, //
+                BigInteger number, //
+                BigInteger cropAmount, //
+                ByteBuffer signer, //
+                ByteBuffer signature) {
+            this.version = version;
+            this.tablespaceName = tablespaceName;
+            this.tableName = tableName;
+            this.session = session;
+            this.number = number;
+            this.cropAmount = cropAmount;
+            this.signer = signer;
+            this.signature = signature;
+        }
+
+        public Integer getVersion() {
+            return version;
+        }
+
+        public String getTablespaceName() {
+            return tablespaceName;
+        }
+
+        public String getTableName() {
+            return tableName;
+        }
+
+        public UUID getSession() {
+            return session;
+        }
+
+        public BigInteger getNumber() {
+            return number;
+        }
+
+        public BigInteger getCropAmount() {
+            return cropAmount;
+        }
+
+        public ByteBuffer getSigner() {
+            return signer.slice();
+        }
+
+        public ByteBuffer getSignature() {
+            return signature.slice();
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((session == null) ? 0 : session.hashCode());
+            result = prime * result + ((signer == null) ? 0 : signer.hashCode());
+            result = prime * result + ((tableName == null) ? 0 : tableName.hashCode());
+            result = prime * result + ((tablespaceName == null) ? 0 : tablespaceName.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            ChequeDescription other = (ChequeDescription) obj;
+            if (session == null) {
+                if (other.session != null)
+                    return false;
+            } else if (!session.equals(other.session))
+                return false;
+            if (signer == null) {
+                if (other.signer != null)
+                    return false;
+            } else if (!signer.equals(other.signer))
+                return false;
+            if (tableName == null) {
+                if (other.tableName != null)
+                    return false;
+            } else if (!tableName.equals(other.tableName))
+                return false;
+            if (tablespaceName == null) {
+                if (other.tablespaceName != null)
+                    return false;
+            } else if (!tablespaceName.equals(other.tablespaceName))
                 return false;
             return true;
         }
@@ -293,7 +408,8 @@ public final class TiesSchemaUtil {
         QueryProcessor.execute(//
                 "CREATE KEYSPACE " + KEYSPACE //
                         + " WITH REPLICATION = " + KEYSPACE_REPLICATION //
-                        + " AND DURABLE_WRITES = true", //
+                        + " AND DURABLE_WRITES = true" //
+                , //
                 ConsistencyLevel.ALL);
     }
 
@@ -311,7 +427,8 @@ public final class TiesSchemaUtil {
                         + SCHEMA_TABLE_NAME + "," //
                         + SCHEMA_VERSION + ")," //
                         + SCHEMA_FIELD_NAME + ")\n" //
-                        + ")", //
+                        + ")" //
+                , //
                 ConsistencyLevel.ALL);
     }
 
@@ -327,19 +444,11 @@ public final class TiesSchemaUtil {
                         + " PRIMARY KEY (("//
                         + SCHEMA_TABLESPACE_NAME + ","//
                         + SCHEMA_TABLE_NAME + "))\n"//
-                        + ")", //
+                        + ")" //
+                , //
                 ConsistencyLevel.ALL);
     }
 
-    // private static final String PAYMENT_CHEQUE_TABLESPACE_NAME =
-    // "tablespace_name";
-    // private static final String PAYMENT_CHEQUE_TABLE_NAME = "table_name";
-    // private static final String PAYMENT_CHEQUE_SESSION = "session";
-    // private static final String PAYMENT_CHEQUE_NUMBER = "number";
-    // private static final String PAYMENT_CHEQUE_AMOUNT = "crop_amount";
-    // private static final String PAYMENT_CHEQUE_SIGNER = "signer";
-    // private static final String PAYMENT_CHEQUE_SIGNATURE = "signature";
-    // private static final String PAYMENT_CHEQUE_VERSION = "version";
     private static void createChequesTable() throws TiesConfigurationException {
         LOG.debug("Creating TiesDB cheques table: `{}`", PAYMENT_CHEQUES_TABLE);
         QueryProcessor.execute(//
@@ -358,6 +467,13 @@ public final class TiesSchemaUtil {
                         + PAYMENT_CHEQUE_SIGNER + "), "//
                         + PAYMENT_CHEQUE_SESSION + ")\n"//
                         + ")", //
+                ConsistencyLevel.ALL);
+        LOG.debug("Creating TiesDB cheques table index on: `{}`", PAYMENT_CHEQUE_CRP_AMOUNT);
+        QueryProcessor.execute(//
+                "CREATE INDEX IF NOT EXISTS " + PAYMENT_CHEQUES_TABLE + "__" + PAYMENT_CHEQUE_CRP_AMOUNT + "_idx" //
+                        + " ON " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE //
+                        + " (" + PAYMENT_CHEQUE_CRP_AMOUNT + ")"//
+                , //
                 ConsistencyLevel.ALL);
     }
 
@@ -892,15 +1008,7 @@ public final class TiesSchemaUtil {
         });
     }
 
-    public static void createChequeSession(//
-            BigInteger version,
-            String tablespaceName, //
-            String tableName, //
-            UUID session, //
-            BigInteger number, //
-            BigInteger cropAmount, //
-            ByteBuffer signer, //
-            ByteBuffer signature) throws TiesServiceScopeException {
+    public static void createChequeSession(ChequeDescription c) throws TiesServiceScopeException {
         UntypedResultSet result = QueryProcessor.execute(//
                 "INSERT INTO " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE + " ("//
                         + PAYMENT_CHEQUE_TABLESPACE_NAME + ", " //
@@ -923,14 +1031,14 @@ public final class TiesSchemaUtil {
                         + ") IF NOT EXISTS" //
                 , //
                 ConsistencyLevel.ALL, new Object[] { //
-                        tablespaceName, //
-                        tableName, //
-                        session, //
-                        number, //
-                        cropAmount, //
-                        signer, //
-                        signature, //
-                        version.intValueExact(), //
+                        c.tablespaceName, //
+                        c.tableName, //
+                        c.session, //
+                        c.number, //
+                        c.cropAmount, //
+                        c.signer, //
+                        c.signature, //
+                        c.version, //
                 });
         if (result.isEmpty()) {
             throw new TiesServiceScopeException("No update result found");
@@ -941,15 +1049,7 @@ public final class TiesSchemaUtil {
         }
     }
 
-    public static void updateChequeSession(//
-            String tablespaceName, //
-            String tableName, //
-            UUID session, //
-            BigInteger number, //
-            BigInteger cropAmount, //
-            BigInteger cropDelta, //
-            ByteBuffer signer, //
-            ByteBuffer signature) throws TiesServiceScopeException {
+    public static void updateChequeSession(ChequeDescription c, BigInteger cropDelta) throws TiesServiceScopeException {
         UntypedResultSet result = QueryProcessor.execute(//
                 "UPDATE " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE + " SET "//
                         + PAYMENT_CHEQUE_NUMBER + " = ?, " //
@@ -964,15 +1064,15 @@ public final class TiesSchemaUtil {
                         + PAYMENT_CHEQUE_CRP_AMOUNT + " <= ?" //
                 , //
                 ConsistencyLevel.ALL, new Object[] { //
-                        number, //
-                        cropAmount, //
-                        signature, //
+                        c.number, //
+                        c.cropAmount, //
+                        c.signature, //
                         // WHERE //
-                        tablespaceName, //
-                        tableName, //
-                        signer, //
-                        session, //
-                        cropAmount.subtract(cropDelta),
+                        c.tablespaceName, //
+                        c.tableName, //
+                        c.signer, //
+                        c.session, //
+                        c.cropAmount.subtract(cropDelta), //
                 });
         if (result.isEmpty()) {
             throw new TiesServiceScopeException("No update result found");
@@ -981,5 +1081,68 @@ public final class TiesSchemaUtil {
         } else if (!result.one().getBoolean("[applied]")) {
             throw new TiesServiceScopeException("Update failed");
         }
+    }
+
+    public static void findCheques(Consumer<ChequeDescription> c, BigInteger cropAmountThreshold, BigInteger resultCountLimit) {
+
+        BigInteger maxCropAmount = BigInteger.ZERO;
+
+        UntypedResultSet result = QueryProcessor.execute( //
+                "SELECT MAX(" + PAYMENT_CHEQUE_CRP_AMOUNT + ") AS " + PAYMENT_CHEQUE_CRP_AMOUNT //
+                        + " FROM " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE //
+                , //
+                ConsistencyLevel.LOCAL_QUORUM);
+        for (UntypedResultSet.Row row : result) {
+            maxCropAmount = readBigInteger(row, PAYMENT_CHEQUE_CRP_AMOUNT);
+            break;
+        }
+
+        if (BigInteger.ZERO.equals(maxCropAmount) || maxCropAmount.compareTo(cropAmountThreshold) < 0) {
+            return;
+        }
+
+        result = QueryProcessor.execute( //
+                "SELECT " + PAYMENT_CHEQUE_TABLESPACE_NAME + ", " //
+                        + PAYMENT_CHEQUE_TABLE_NAME + ", " //
+                        + PAYMENT_CHEQUE_SESSION + ", " //
+                        + PAYMENT_CHEQUE_NUMBER + ", " //
+                        + PAYMENT_CHEQUE_CRP_AMOUNT + ", " //
+                        + PAYMENT_CHEQUE_SIGNER + ", " //
+                        + PAYMENT_CHEQUE_SIGNATURE + ", " //
+                        + PAYMENT_CHEQUE_VERSION //
+                        + " FROM " + KEYSPACE + "." + PAYMENT_CHEQUES_TABLE //
+                        + " WHERE " + PAYMENT_CHEQUE_CRP_AMOUNT + " = ?" //
+                        + (null == resultCountLimit || BigInteger.ZERO.compareTo(resultCountLimit) >= 0 //
+                                ? "" //
+                                : " LIMIT " + resultCountLimit) //
+                , //
+                ConsistencyLevel.LOCAL_QUORUM, new Object[] { //
+                        maxCropAmount, //
+                });
+
+        for (UntypedResultSet.Row row : result) {
+            c.accept(new ChequeDescription( //
+                    row.getInt(PAYMENT_CHEQUE_VERSION), //
+                    row.getString(PAYMENT_CHEQUE_TABLESPACE_NAME), //
+                    row.getString(PAYMENT_CHEQUE_TABLE_NAME), //
+                    row.getUUID(PAYMENT_CHEQUE_SESSION), //
+                    readBigInteger(row, PAYMENT_CHEQUE_NUMBER), //
+                    readBigInteger(row, PAYMENT_CHEQUE_CRP_AMOUNT), //
+                    row.getBytes(PAYMENT_CHEQUE_SIGNER), //
+                    row.getBytes(PAYMENT_CHEQUE_SIGNATURE) //
+            ));
+        }
+    }
+
+    private static BigInteger readBigInteger(UntypedResultSet.Row row, String name) {
+        return read(row, name, IntegerType.instance, o -> o);
+    }
+
+    private static BigInteger readDecimal(UntypedResultSet.Row row, String name) {
+        return read(row, name, DecimalType.instance, o -> o.toBigIntegerExact());
+    }
+
+    private static <T, R> R read(UntypedResultSet.Row row, String name, AbstractType<T> type, Function<T, R> map) {
+        return map.apply(type.compose(row.getBlob(name)));
     }
 }
